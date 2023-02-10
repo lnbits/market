@@ -73,7 +73,6 @@
 
       <q-card-section>
         <q-toggle
-          disable
           v-model="diagonAlley"
           checked-icon="check"
           color="green"
@@ -165,6 +164,7 @@
 
 {% endblock %} {% block scripts %} {{ window_vars(user) }}
 
+<script src="{{ url_for('market_static', path='js/utils.js') }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/pica@6.1.1/dist/pica.min.js"></script>
 <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
 
@@ -189,9 +189,7 @@
   }
   const mapProducts = obj => {
     obj._data = _.clone(obj)
-    if ('{{  currency }}' != 'sat') {
-      obj.price /= 100
-    }
+    obj.price = new Intl.NumberFormat(LOCALE).format(obj.price)
     return obj
   }
   const mapZone = obj => {
@@ -265,6 +263,7 @@
         customerKey: '',
         customerMessages: {},
         messages: {},
+        nostrMessages: new Map(),
         newMessage: '',
         orderMessages: {},
         shippedModel: false,
@@ -326,8 +325,8 @@
           'Other'
         ],
         relayOptions: [
-          'wss://nostr-relay.herokuapp.com/ws',
-          'wss://nostr-relay.bigsun.xyz/ws',
+          'wss://nostr-pub.wellorder.net',
+          'wss://relay.nostr.info',
           'wss://freedom-relay.herokuapp.com/ws'
         ],
         label: '',
@@ -430,16 +429,16 @@
               field: 'wallet'
             },
             {
+              name: 'currency',
+              align: 'left',
+              label: 'Unit',
+              field: 'currency'
+            },
+            {
               name: 'publickey',
               align: 'left',
               label: 'Public key',
               field: 'publickey'
-            },
-            {
-              name: 'privatekey',
-              align: 'left',
-              label: 'Private key',
-              field: 'privatekey'
             }
           ],
           pagination: {
@@ -542,8 +541,141 @@
         }
         this[dialog].data = {}
       },
+      ////////////////////////////////////////
+      ////////////////NOSTR///////////////////
+      ////////////////////////////////////////
+      getRelays(stallId = false) {
+        let publishToRelays = new Set()
+        let stalls = stallId
+          ? [this.stalls.find(s => s.id == stallId)]
+          : this.stalls
+        console.log(stalls)
+        stalls.map(stall => {
+          let relays = []
+          if (stall.relays) {
+            relays = [...relays, ...stall.relays.split(',')]
+          }
+          if (stall.crelays) {
+            relays = [...relays, ...stall.crelays.split(',')]
+          }
+          relays.filter(Boolean).map(r => publishToRelays.add(r))
+        })
+        return publishToRelays
+      },
+      async nostrGetAllMessages() {
+        //Subscribe to relays
+        await LNbits.api
+          .request('POST', '/nostradmin/api/v1/publish', null, event)
+          .then(res => {})
+        //let relays = this.getRelays()
+        for (const url of relays) {
+          try {
+            const relay = nostr.relayInit(url)
+            await subscribeToChatRelay(
+              relay,
+              [this.keys.pubkey],
+              async event => {
+                let mine = event.pubkey == this.keys.pubkey
+                let sender = mine
+                  ? event.tags.find(([k, v]) => k === 'p' && v && v !== '')[1]
+                  : event.pubkey
+                try {
+                  let plaintext = await nostr.nip04.decrypt(
+                    this.keys.privkey,
+                    sender,
+                    event.content
+                  )
+                  this.nostrMessages.set(event.id, {
+                    msg: plaintext,
+                    timestamp: event.created_at,
+                    pubkey: event.pubkey
+                  })
+                } catch (e) {
+                  console.error('Unable to decrypt message', event, this.keys)
+                  return
+                }
+              }
+            )
+          } catch (e) {
+            console.error(e)
+            continue
+          }
+        }
+        setTimeout(() => {
+          console.log(this.nostrMessages)
+        }, 10000)
+      },
+      // There's probably better suited kinds for this than 1, and could simplify the flow
+      async sendToRelays(rawData = {}, type = null, action = null) {
+        if (!this.diagonAlley) return
+        //let publishToRelays = new Set()
+        let data = {}
+
+        if (type === 'stall') {
+          data = nostrStallData(rawData, action)
+          //publishToRelays = this.getRelays(rawData.id)
+        } else if (type === 'product') {
+          data = nostrProductData(rawData, action)
+          //publishToRelays = this.getRelays(rawData.stall)
+        } else {
+          data = initNostrMarket({
+            stalls: this.stalls,
+            shipping: this.zones,
+            products: this.products
+          })
+          //publishToRelays = this.getRelays()
+        }
+
+        let event = {
+          kind: 1,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: JSON.stringify(data),
+          pubkey: this.keys.pubkey
+        }
+        event.id = nostr.getEventHash(event)
+        event.sig = nostr.signEvent(event, this.keys.privkey)
+        await LNbits.api.request(
+          'POST',
+          '/nostradmin/api/v1/publish',
+          null,
+          event
+        )
+        //console.log(event, publishToRelays)
+        // Commented out for testing, to avoid spamming relays
+        /*
+        for (const url of publishToRelays) {
+          try {
+            const relay = nostr.relayInit(url)
+            await publishNostrEvent(relay, event)
+          } catch (e) {
+            console.error(e)
+            continue
+          }
+        }
+        */
+      },
       toggleDA(value, evt) {
-        this.$q.localStorage.set(`lnbits.DAmode`, value)
+        if (this.$q.localStorage.getItem('lnbits.DAmode')) {
+          this.$q.localStorage.set(`lnbits.DAmode`, false)
+          this.diagonAlley = false
+          return
+        }
+        if (!this.keys) {
+          this.generateKeys()
+        }
+        LNbits.utils
+          .confirmDialog(
+            `Are you sure you want to go Diagon Alley mode (Nostr)?\nAll comunications, stalls and products will be available in Nostr!`
+          )
+          .onCancel(() => (this.diagonAlley = false))
+          .onDismiss(() => (this.diagonAlley = false))
+          .onOk(async () => {
+            this.$q.localStorage.set(`lnbits.DAmode`, value)
+            this.diagonAlley = true
+            // now collect all market data, create and send a note/event to Nostr
+            this.sendToRelays()
+          })
       },
       setCurrency(v) {
         let data = {
@@ -682,10 +814,13 @@
             .includes(z.split('-')[0].trim())
         )
 
-        this.stallDialog.data.shippingzones = shippingzones //this.stallDialog.data.shippingzones.split(",")
-
-        //let zones = this.zoneOptions
-        //  .filter(z => z.id == )
+        this.stallDialog.data.shippingzones = shippingzones
+        let relays =
+          this.stallDialog.data.relays &&
+          this.relayOptions.filter(r =>
+            this.stallDialog.data.relays.split(',').includes(r)
+          )
+        this.stallDialog.data.relays = relays
         this.stallDialog.show = true
       },
       sendStallFormData: function () {
@@ -693,11 +828,18 @@
           name: this.stallDialog.data.name,
           wallet: this.stallDialog.data.wallet,
           publickey: this.stallDialog.data.publickey || this.keys.pubkey,
-          currency: this.currencies.unit,
-          relays: this.stallDialog.data.relays,
+          currency: this.stallDialog.data.currency,
+          relays:
+            this.stallDialog.data.relays &&
+            this.stallDialog.data.relays.toString(),
+          crelays:
+            this.stallDialog.data.crelays &&
+            this.stallDialog.data.crelays.toString(),
           shippingzones: this.stallDialog.data.shippingzones
             .map(z => z.split('-')[0].trim())
-            .toString()
+            .toString(),
+          fiat_base_multiplier:
+            this.stallDialog.data.currency != 'sat' ? 100 : 1
         }
         if (this.stallDialog.data.id) {
           this.stallDialog.data = {...this.stallDialog.data, ...data}
@@ -717,11 +859,18 @@
             }).inkey,
             data
           )
-          .then(function (response) {
+          .then(async function (response) {
             self.stalls = _.reject(self.stalls, function (obj) {
               return obj.id == data.id
             })
-            self.stalls.push(mapStalls(response.data))
+            let stallData = mapStalls(response.data)
+            self.stalls.push(stallData)
+            //UPDATE Nostr data
+            try {
+              await self.sendToRelays(stallData, 'stall', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('stallDialog')
           })
           .catch(function (error) {
@@ -739,8 +888,15 @@
             }).inkey,
             data
           )
-          .then(function (response) {
-            self.stalls.push(mapStalls(response.data))
+          .then(async function (response) {
+            let stallData = mapStalls(response.data)
+            self.stalls.push(mapStalls(stallData))
+            //SEND Nostr data
+            try {
+              await self.sendToRelays(stallData, 'stall', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('stallDialog')
             //self.stallDialog.show = false
             //self.stallDialog.data = {}
@@ -763,7 +919,13 @@
                 '/market/api/v1/stalls/' + stallId,
                 _.findWhere(self.g.user.wallets, {id: stall.wallet}).adminkey
               )
-              .then(function (response) {
+              .then(async function (response) {
+                //SEND Nostr data
+                try {
+                  await self.sendToRelays({id: stallId}, 'stall', 'delete')
+                } catch (e) {
+                  console.error(e)
+                }
                 self.stalls = _.reject(self.stalls, function (obj) {
                   return obj.id == stallId
                 })
@@ -797,21 +959,32 @@
             LNbits.utils.notifyApiError(error)
           })
       },
+      setProductCurrency() {
+        this.productDialog.currency = this.stalls.find(
+          s => s.id == this.productDialog.data.stall
+        ).currency
+      },
       openProductUpdateDialog: function (linkId) {
         var self = this
         var link = _.findWhere(self.products, {id: linkId})
+        console.log(link)
+        self.productDialog.currency = self.stalls.find(
+          s => s.id == link.stall
+        ).currency
 
         self.productDialog.data = _.clone(link._data)
         if (self.productDialog.data.categories) {
           self.productDialog.data.categories =
             self.productDialog.data.categories.split(',')
         }
-        if (self.productDialog.data.image.startsWith('data:')) {
+        if (
+          self.productDialog.data.image &&
+          self.productDialog.data.image.startsWith('data:')
+        ) {
           self.productDialog.url = false
         }
 
         self.productDialog.show = true
-        console.log(self.productDialog)
       },
       sendProductFormData: function () {
         let _data = {...this.productDialog.data}
@@ -863,11 +1036,18 @@
             }).inkey,
             data
           )
-          .then(function (response) {
+          .then(async function (response) {
             self.products = _.reject(self.products, function (obj) {
               return obj.id == data.id
             })
-            self.products.push(mapProducts(response.data))
+            let productData = mapProducts(response.data)
+            self.products.push(productData)
+            //SEND Nostr data
+            try {
+              await self.sendToRelays(productData, 'product', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('productDialog')
             //self.productDialog.show = false
             //self.productDialog.data = {}
@@ -887,8 +1067,15 @@
             _.findWhere(self.g.user.wallets, {id: walletId}).inkey,
             data
           )
-          .then(response => {
-            self.products.push(mapProducts(response.data))
+          .then(async response => {
+            let productData = mapProducts(response.data)
+            self.products.push(productData)
+            //SEND Nostr data
+            try {
+              await self.sendToRelays(productData, 'product', 'update')
+            } catch (e) {
+              console.error(e)
+            }
             self.resetDialog('productDialog')
           })
           .catch(error => {
@@ -1207,6 +1394,7 @@
           .then(res => {
             if (!res.data.length) return
             this.messages = _.groupBy(res.data, 'id_conversation')
+            console.log(this.messages, res.data)
             this.checkUnreadMessages()
           })
           .catch(error => {
@@ -1252,24 +1440,17 @@
         this.$refs.newMessage.focus()
       },
       async sendMessage() {
-        // this is way more tricky...
-        // need to figure out how to better display our messages in plain text, and incoming with encryption
-        // also, as we're saving messages to the DB, the full Nostr event format will be much more heavy in size
-        /*
-        let orderPublicKey = this.orders.find(
-          o => o.invoiceid == this.customerKey
-        ).pubkey
-
-        let ciphertext = await nostr.nip04.encrypt(
-          this.keys.privkey,
-          orderPublicKey,
-          this.newMessage
-        )
-
-        */
-        // if diagon alley mode is active create a propper event
-        /*
         if (this.diagonAlley) {
+          let orderPublicKey = this.orders.find(
+            o => o.invoiceid == this.customerKey
+          ).pubkey
+
+          let ciphertext = await nostr.nip04.encrypt(
+            this.keys.privkey,
+            orderPublicKey,
+            this.newMessage
+          )
+
           let event = {
             kind: 4,
             pubkey: this.keys.publickey,
@@ -1281,7 +1462,6 @@
           event.id = nostr.getEventHash(event)
           event.sig = await nostr.signEvent(event, this.keys.privatekey)
         }
-        */
 
         let message = {
           msg: this.newMessage,
@@ -1376,6 +1556,9 @@
         )
         if (keys) {
           this.keys = keys
+        }
+        if (this.diagonAlley) {
+          await this.nostrGetAllMessages()
         }
         setInterval(() => {
           this.getAllMessages()

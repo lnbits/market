@@ -1,7 +1,9 @@
+from base64 import urlsafe_b64encode
 from http import HTTPStatus
-from typing import Optional
+from typing import List, Union
+from uuid import uuid4
 
-from fastapi import Depends, Query
+from fastapi import Body, Depends, Query, Request
 from loguru import logger
 from starlette.exceptions import HTTPException
 
@@ -15,7 +17,7 @@ from lnbits.decorators import (
     require_invoice_key,
 )
 from lnbits.helpers import urlsafe_short_hash
-from lnbits.utils.exchange_rates import currencies
+from lnbits.utils.exchange_rates import currencies, get_fiat_rate_satoshis
 
 from . import db, market_ext
 from .crud import (
@@ -46,6 +48,7 @@ from .crud import (
     get_market_settings,
     get_market_stall,
     get_market_stalls,
+    get_market_stalls_by_ids,
     get_market_zone,
     get_market_zones,
     set_market_order_pubkey,
@@ -57,7 +60,12 @@ from .crud import (
 )
 from .models import (
     CreateMarket,
+    CreateMarketStalls,
+    Orders,
+    Products,
     SetSettings,
+    Stalls,
+    Zones,
     createOrder,
     createProduct,
     createStalls,
@@ -96,15 +104,13 @@ async def api_market_product_create(
 ):
     # For fiat currencies,
     # we multiply by data.fiat_base_multiplier (usually 100) to save the value in cents.
-    settings = await get_market_settings(user=wallet.wallet.user)
-    assert settings
+    # settings = await get_market_settings(user=wallet.wallet.user)
+    # assert settings
 
     stall = await get_market_stall(stall_id=data.stall)
     assert stall
-
     if stall.currency != "sat":
-        data.price *= settings.fiat_base_multiplier
-
+        data.price *= stall.fiat_base_multiplier
     if data.image:
         image_is_url = data.image.startswith("https://") or data.image.startswith(
             "http://"
@@ -225,7 +231,7 @@ async def api_market_stalls(
 @market_ext.put("/api/v1/stalls/{stall_id}")
 async def api_market_stall_create(
     data: createStalls,
-    stall_id: Optional[str] = None,
+    stall_id: str = None,
     wallet: WalletTypeInfo = Depends(require_invoice_key),
 ):
 
@@ -304,7 +310,7 @@ async def api_market_order_create(data: createOrder):
     payment_hash, payment_request = await create_invoice(
         wallet_id=data.wallet,
         amount=data.total,
-        memo="New order on Market",
+        memo=f"New order on Market",
         extra={
             "tag": "market",
             "reference": ref,
@@ -448,7 +454,7 @@ async def api_market_market_stalls(market_id: str):
 @market_ext.put("/api/v1/markets/{market_id}")
 async def api_market_market_create(
     data: CreateMarket,
-    market_id: Optional[str] = None,
+    market_id: str = None,
     wallet: WalletTypeInfo = Depends(require_invoice_key),
 ):
     if market_id:
@@ -507,7 +513,7 @@ async def api_get_settings(wallet: WalletTypeInfo = Depends(require_admin_key)):
 @market_ext.put("/api/v1/settings/{usr}")
 async def api_set_settings(
     data: SetSettings,
-    usr: Optional[str] = None,
+    usr: str = None,
     wallet: WalletTypeInfo = Depends(require_admin_key),
 ):
     if usr:
@@ -525,3 +531,10 @@ async def api_set_settings(
     user = wallet.wallet.user
 
     return await create_market_settings(user, data)
+
+
+## NOSTR
+@market_ext.post("/api/v1/event")
+async def api_nostr_event(event: dict):
+    if not event:
+        return

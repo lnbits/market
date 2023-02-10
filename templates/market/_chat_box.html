@@ -14,7 +14,7 @@
       emit-value
     ></q-select>
   </q-card-section>
-  <q-card-section>
+  <q-card-section v-if="!diagonAlley">
     <div class="chat-container" ref="chatCard">
       <div class="chat-box">
         <!-- <p v-if="Object.keys(messages).length === 0">No messages yet</p> -->

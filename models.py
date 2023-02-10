@@ -1,6 +1,7 @@
 from typing import List, Optional
+from sqlite3 import Row
 
-from fastapi.param_functions import Query
+from fastapi import Query
 from pydantic import BaseModel
 
 
@@ -22,7 +23,9 @@ class Stalls(BaseModel):
     currency: str
     publickey: Optional[str]
     relays: Optional[str]
+    crelays: Optional[str]
     shippingzones: str
+    fiat_base_multiplier: int
 
 
 class createStalls(BaseModel):
@@ -31,7 +34,9 @@ class createStalls(BaseModel):
     currency: str = Query("sat")
     publickey: str = Query(None)
     relays: str = Query(None)
+    crelays: str = Query(None)
     shippingzones: str = Query(...)
+    fiat_base_multiplier: int = Query(1, ge=1)
 
 
 class createProduct(BaseModel):
@@ -40,7 +45,7 @@ class createProduct(BaseModel):
     categories: str = Query(None)
     description: str = Query(None)
     image: str = Query(None)
-    price: float = Query(0, ge=0)
+    price: float = Query(1, ge=0.01)
     quantity: int = Query(0, ge=0)
 
 

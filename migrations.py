@@ -139,7 +139,7 @@ async def m001_initial(db):
             id_conversation TEXT NOT NULL,
             timestamp TIMESTAMP NOT NULL DEFAULT """
         + db.timestamp_now
-        + """
+        + """            
         );
     """
     )
@@ -154,3 +154,26 @@ async def m001_initial(db):
         await db.execute(
             "CREATE INDEX idx_messages_conversations ON market.messages (id_conversation)"
         )
+
+
+async def m002_add_custom_relays(db):
+    """
+    Add custom relays to stores
+    """
+    await db.execute("ALTER TABLE market.stalls ADD COLUMN crelays TEXT;")
+
+
+async def m003_fiat_base_multiplier(db):
+    """
+    Store the multiplier for fiat prices. We store the price in cents and
+    remember to multiply by 100 when we use it to convert to Dollars.
+    """
+    await db.execute(
+        "ALTER TABLE market.stalls ADD COLUMN fiat_base_multiplier INTEGER DEFAULT 1;"
+    )
+
+    # for row in [list(row) for row in await db.fetchall("SELECT * FROM market.stalls")]:
+    #     if row[3] != "sat":
+    await db.execute(
+        "UPDATE market.stalls SET fiat_base_multiplier = 100 WHERE NOT currency = 'sat';"
+    )

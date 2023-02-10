@@ -1,6 +1,15 @@
+import json
 from http import HTTPStatus
+from typing import List
 
-from fastapi import Depends, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.templating import Jinja2Templates
 from loguru import logger
 from starlette.exceptions import HTTPException
@@ -11,6 +20,7 @@ from lnbits.decorators import check_user_exists
 
 from . import market_ext, market_renderer
 from .crud import (
+    create_chat_message,
     create_market_settings,
     get_market_market,
     get_market_market_stalls,
@@ -20,8 +30,10 @@ from .crud import (
     get_market_settings,
     get_market_stall,
     get_market_zone,
+    get_market_zones,
+    update_market_product_stock,
 )
-from .models import SetSettings
+from .models import CreateChatMessage, SetSettings
 from .notifier import Notifier
 
 templates = Jinja2Templates(directory="templates")
@@ -140,14 +152,24 @@ notifier = Notifier()
 
 
 @market_ext.websocket("/ws/{room_name}")
-async def websocket_endpoint(websocket: WebSocket, room_name: str):
+async def websocket_endpoint(
+    websocket: WebSocket, room_name: str, background_tasks: BackgroundTasks
+):
     await notifier.connect(websocket, room_name)
     try:
         while True:
             data = await websocket.receive_text()
-            room_members = notifier.get_members(room_name) or []
+            d = json.loads(data)
+            d["room_name"] = room_name
+
+            room_members = (
+                notifier.get_members(room_name)
+                if notifier.get_members(room_name) is not None
+                else []
+            )
+
             if websocket not in room_members:
-                logger.warning("Sender not in room member: Reconnecting...")
+                print("Sender not in room member: Reconnecting...")
                 await notifier.connect(websocket, room_name)
             await notifier._notify(data, room_name)
 
