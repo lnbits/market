@@ -1,4 +1,11 @@
-function initNostrMarket(data) {
+function initalizeNostr(data) {
+  let stalls = data.stalls.map(nostrStallData)
+  let products = data.products.map(nostrProductData)
+
+  return [...stalls, ...products]
+}
+
+function _initNostrMarket(data) {
   console.log(data)
   let stalls = data.stalls.map(stall => {
     return {
@@ -32,48 +39,43 @@ function initNostrMarket(data) {
   }
 }
 
-function nostrStallData(data, action = 'update') {
-  return {
-    action,
-    stalls: [
-      {
-        id: data.id,
-        name: data.name,
-        description: '',
-        shipping: data.shippingzones,
-        action
-      }
-    ]
+function nostrStallData(stall) {
+  let content = {
+    name: stall.name,
+    description: stall.description || '',
+    currency: stall.currency,
+    multiplier: stall.fiat_base_multiplier
   }
+  let event = {
+    kind: 30005,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [['d', stall.id]],
+    content: JSON.stringify(content)
+  }
+  return event
 }
 
-function nostrProductData(data, action = 'update') {
-  let stallId = data.stall
-
-  return {
-    action,
-    stalls: [
-      {
-        id: stallId,
-        products: [
-          {
-            id: data.id,
-            name: data.product,
-            description: data.description,
-            categories: data.categories,
-            amount: data.quantity,
-            price: data.price,
-            images: data.image && [
-              data.image.startsWith('data:')
-                ? data.image.slice(0, 20)
-                : data.image
-            ],
-            action: null
-          }
-        ]
-      }
-    ]
+function nostrProductData(product) {
+  let content = {
+    stall: product.stall,
+    name: product.product,
+    description: product.description,
+    amount: product.quantity,
+    price: product.price,
+    image: product.image || null
   }
+  let event = {
+    kind: 30005, // maybe have 30006 for products ?
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [['d', product.id]],
+    content: JSON.stringify(content)
+  }
+  if (product.categories) {
+    product.categories.split(',').map(c => {
+      event.tags = [...event.tags, ['t', c]]
+    })
+  }
+  return event
 }
 
 async function subscribeToChatRelay(relay, pubkeys, cb = () => {}) {
