@@ -2,8 +2,11 @@ from base64 import urlsafe_b64encode
 from http import HTTPStatus
 from typing import List, Union
 from uuid import uuid4
+import httpx
 
 from fastapi import Body, Depends, Query, Request
+from fastapi.responses import StreamingResponse
+from sse_starlette.sse import EventSourceResponse
 from loguru import logger
 from starlette.exceptions import HTTPException
 
@@ -533,8 +536,22 @@ async def api_set_settings(
     return await create_market_settings(user, data)
 
 
-## NOSTR
-@market_ext.post("/api/v1/event")
-async def api_nostr_event(event: dict):
-    if not event:
-        return
+## NOSTR STUFF
+@market_ext.get("/api/v1/nip04/{pubkey}")
+async def api_nostr_event(pubkey: str):
+    streamer = httpx.stream(
+        "POST",
+        "http://localhost:5000/nostrclient/api/v1/filters",
+        json=[{"kinds": [4], "authors": [pubkey]}, {"kinds": [4], "p": [pubkey]}],
+    )
+
+    return EventSourceResponse(streamer)
+    # async with httpx.AsyncClient() as client:
+    #     r = await httpx.post(
+    #         "http://localhost:5000/nostrclient/api/v1/filters",
+    #         json=[{"kinds": [4], "authors": [pubkey]}, {"kinds": [4], "p": [pubkey]}],
+    #     )
+
+    #     ## How do i pass the messages from 'r' as SSE ?
+    #     ## return what?
+    #     return
