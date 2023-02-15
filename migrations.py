@@ -23,6 +23,7 @@ async def m001_initial(db):
             name TEXT NOT NULL,
             currency TEXT,
             publickey TEXT,
+            privatekey TEXT,
             relays TEXT,
             shippingzones TEXT NOT NULL,
             rating INTEGER DEFAULT 0

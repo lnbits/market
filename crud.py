@@ -102,7 +102,8 @@ async def get_market_products(stall_ids: Union[str, List[str]]) -> List[Products
         (*stall_ids,),
     )
     products = [Products(**row) for row in rows]
-    assert products
+    if not products:
+        return []
 
     for product in products:
         stall = await get_market_stall(product.stall)
@@ -178,10 +179,11 @@ async def create_market_stall(data: createStalls) -> Stalls:
             name,
             currency,
             publickey,
+            privatekey,
             relays,
             shippingzones
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             stall_id,
@@ -189,6 +191,7 @@ async def create_market_stall(data: createStalls) -> Stalls:
             data.name,
             data.currency,
             data.publickey,
+            data.privatekey,
             data.relays,
             data.shippingzones,
         ),

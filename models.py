@@ -22,6 +22,7 @@ class Stalls(BaseModel):
     name: str
     currency: str
     publickey: Optional[str]
+    privatekey: Optional[str]
     relays: Optional[str]
     crelays: Optional[str]
     shippingzones: str
@@ -33,6 +34,7 @@ class createStalls(BaseModel):
     name: str = Query(...)
     currency: str = Query("sat")
     publickey: str = Query(None)
+    privatekey: str = Query(None)
     relays: str = Query(None)
     crelays: str = Query(None)
     shippingzones: str = Query(...)

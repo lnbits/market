@@ -281,6 +281,7 @@
       <q-input
         v-if="diagonAlley"
         v-if="keys"
+        disable
         filled
         dense
         v-model.trim="stallDialog.data.publickey"
@@ -289,6 +290,7 @@
       <q-input
         v-if="diagonAlley"
         v-if="keys"
+        disable
         filled
         dense
         v-model.trim="stallDialog.data.privatekey"
@@ -296,11 +298,11 @@
       ></q-input>
       <!-- NOSTR -->
       <div v-if="diagonAlley" class="row">
-        <div class="col-5">
+        <!-- <div class="col-5">
           <q-btn unelevated @click="generateKeys" color="primary"
             >Generate keys</q-btn
           >
-        </div>
+        </div> -->
         <div class="col-5">
           <q-btn unelevated @click="restoreKeys" color="primary"
             >Restore keys</q-btn
