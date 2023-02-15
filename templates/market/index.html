@@ -563,12 +563,34 @@
         return publishToRelays
       },
       async nostrGetAllMessages() {
+        let data = {
+          kinds: [4],
+          authors: [this.keys.pubkey]
+          //p: [this.keys.pubkey]
+        }
         //Subscribe to relays
-        await LNbits.api
-          .request('POST', '/nostradmin/api/v1/publish', null, event)
-          .then(res => {})
+        /*LNbits.api
+          .request('POST', '/nostrclient/api/v1/filter', null, {
+            kinds: [4],
+            authors: [this.keys.pubkey]
+            //p: [this.keys.pubkey]
+          })
+          .then(() => {
+            console.log('POST DONE')
+            // Create an EventSource object to receive SSE messages
+            const eventSource = new EventSource('/nostrclient/api/v1/filter')
+            // Attach an onmessage event listener to handle the SSE messages
+            eventSource.onmessage = event => {
+              console.log('Message')
+              const eventData = JSON.parse(event.data)
+              console.log(eventData)
+            }
+          })
+          .catch(error => {
+            LNbits.utils.notifyApiError(error)
+          })*/
         //let relays = this.getRelays()
-        for (const url of relays) {
+        /*for (const url of relays) {
           try {
             const relay = nostr.relayInit(url)
             await subscribeToChatRelay(
@@ -600,10 +622,21 @@
             console.error(e)
             continue
           }
-        }
-        setTimeout(() => {
-          console.log(this.nostrMessages)
-        }, 10000)
+        }*/
+      },
+      async publishEvent(event) {
+        event.pubkey = this.keys.pubkey
+        console.log(event)
+        event.id = nostr.getEventHash(event)
+        event.sig = nostr.signEvent(event, this.keys.privkey)
+        await LNbits.api
+          .request('POST', '/nostrclient/api/v1/publish', null, event)
+          .then(res => {
+            console.log(`Event ${event.id} published!`)
+          })
+          .catch(error => {
+            LNbits.utils.notifyApiError(error)
+          })
       },
       // There's probably better suited kinds for this than 1, and could simplify the flow
       async sendToRelays(rawData = {}, type = null, action = null) {
@@ -612,35 +645,24 @@
         let data = {}
 
         if (type === 'stall') {
-          data = nostrStallData(rawData, action)
+          data = nostrStallData(rawData)
           //publishToRelays = this.getRelays(rawData.id)
         } else if (type === 'product') {
-          data = nostrProductData(rawData, action)
+          data = nostrProductData(rawData)
           //publishToRelays = this.getRelays(rawData.stall)
         } else {
-          data = initNostrMarket({
+          data = initalizeNostr({
             stalls: this.stalls,
             shipping: this.zones,
             products: this.products
           })
+          data.map(async e => {
+            await this.publishEvent(e)
+          })
+          return
           //publishToRelays = this.getRelays()
         }
-
-        let event = {
-          kind: 1,
-          created_at: Math.floor(Date.now() / 1000),
-          tags: [],
-          content: JSON.stringify(data),
-          pubkey: this.keys.pubkey
-        }
-        event.id = nostr.getEventHash(event)
-        event.sig = nostr.signEvent(event, this.keys.privkey)
-        await LNbits.api.request(
-          'POST',
-          '/nostradmin/api/v1/publish',
-          null,
-          event
-        )
+        await this.publishEvent(data)
         //console.log(event, publishToRelays)
         // Commented out for testing, to avoid spamming relays
         /*
@@ -790,6 +812,7 @@
           .then(function (response) {
             if (response.data) {
               self.stalls = response.data.map(mapStalls)
+              console.log(self.stalls)
             }
           })
           .catch(function (error) {
@@ -802,6 +825,8 @@
         if (!this.keys && !this.diagonAlley) {
           this.generateKeys()
         }
+        this.stallDialog.data.publickey = this.keys.pubkey
+        this.stallDialog.data.privatekey = this.keys.privkey
       },
       openStallUpdateDialog: function (linkId) {
         var self = this
@@ -827,7 +852,8 @@
         let data = {
           name: this.stallDialog.data.name,
           wallet: this.stallDialog.data.wallet,
-          publickey: this.stallDialog.data.publickey || this.keys.pubkey,
+          publickey: this.keys.pubkey,
+          privatekey: this.keys.privkey,
           currency: this.stallDialog.data.currency,
           relays:
             this.stallDialog.data.relays &&
@@ -953,6 +979,7 @@
           .then(function (response) {
             if (response.data) {
               self.products = response.data.map(mapProducts)
+              console.log(self.products)
             }
           })
           .catch(function (error) {
@@ -974,8 +1001,9 @@
 
         self.productDialog.data = _.clone(link._data)
         if (self.productDialog.data.categories) {
-          self.productDialog.data.categories =
-            self.productDialog.data.categories.split(',')
+          self.productDialog.data.categories = self.productDialog.data.categories.split(
+            ','
+          )
         }
         if (
           self.productDialog.data.image &&
