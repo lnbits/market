@@ -23,7 +23,6 @@ async def m001_initial(db):
             name TEXT NOT NULL,
             currency TEXT,
             publickey TEXT,
-            privatekey TEXT,
             relays TEXT,
             shippingzones TEXT NOT NULL,
             rating INTEGER DEFAULT 0
@@ -173,8 +172,10 @@ async def m003_fiat_base_multiplier(db):
         "ALTER TABLE market.stalls ADD COLUMN fiat_base_multiplier INTEGER DEFAULT 1;"
     )
 
-    # for row in [list(row) for row in await db.fetchall("SELECT * FROM market.stalls")]:
-    #     if row[3] != "sat":
     await db.execute(
         "UPDATE market.stalls SET fiat_base_multiplier = 100 WHERE NOT currency = 'sat';"
     )
+
+
+async def m004_redefine_settings(db):
+    await db.execute("ALTER TABLE market.stalls ADD COLUMN privatekey TEXT")
