@@ -10,6 +10,8 @@ from lnbits.tasks import catch_everything_and_restart
 
 db = Database("ext_market")
 
+scheduled_tasks: List[asyncio.Task] = []
+
 market_ext: APIRouter = APIRouter(prefix="/market", tags=["market"])
 
 market_static_files = [
@@ -37,8 +39,6 @@ def market_renderer():
 from .tasks import wait_for_paid_invoices
 from .views import *  # noqa: F401,F403
 from .views_api import *  # noqa: F401,F403
-
-scheduled_tasks: List[asyncio.Task] = []
 
 def market_start():
     loop = asyncio.get_event_loop()
