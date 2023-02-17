@@ -13,11 +13,12 @@ from lnbits.decorators import (
     get_key_type,
     require_admin_key,
     require_invoice_key,
+    check_admin,
 )
 from lnbits.helpers import urlsafe_short_hash
 from lnbits.utils.exchange_rates import currencies
 
-from . import db, market_ext
+from . import db, market_ext, scheduled_tasks
 from .crud import (
     create_market_market,
     create_market_market_stalls,
@@ -525,3 +526,14 @@ async def api_set_settings(
     user = wallet.wallet.user
 
     return await create_market_settings(user, data)
+
+
+@market_ext.delete("/api/v1", status_code=HTTPStatus.OK, dependencies=[Depends(check_admin)])
+async def api_stop():
+    for t in scheduled_tasks:
+        try:
+            t.cancel()
+        except Exception as ex:
+            logger.warning(ex)
+
+    return {"success": True}
