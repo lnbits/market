@@ -140,3 +140,12 @@ class CreateChatMessage(BaseModel):
     msg: str = Query(..., min_length=1)
     pubkey: str = Query(...)
     room_name: str = Query(...)
+
+
+class Event(BaseModel):
+    content: str
+    pubkey: str
+    created_at: Optional[int]
+    kind: int
+    tags: Optional[List[List[str]]]
+    sig: str

@@ -1,7 +1,8 @@
-from base64 import urlsafe_b64encode
+from base64 import urlsafe_b64encode, b64decode
 from http import HTTPStatus
 from typing import List, Union
 from uuid import uuid4
+
 import httpx
 
 from fastapi import Body, Depends, Query, Request
@@ -54,6 +55,7 @@ from .crud import (
     get_market_stalls_by_ids,
     get_market_zone,
     get_market_zones,
+    get_stall_by_pubkey,
     set_market_order_pubkey,
     set_market_settings,
     update_market_market,
@@ -73,6 +75,7 @@ from .models import (
     createProduct,
     createStalls,
     createZones,
+    Event,
 )
 
 # from lnbits.db import open_ext_db
@@ -306,7 +309,7 @@ async def api_market_order_by_id(order_id: str):
     return _order
 
 
-@market_ext.post("/api/v1/orders")
+@market_ext.post("/api/v1/orders", name="market.create_order")
 async def api_market_order_create(data: createOrder):
     ref = urlsafe_short_hash()
 
@@ -503,55 +506,23 @@ async def api_list_currencies_available():
     return list(currencies.keys())
 
 
-@market_ext.get("/api/v1/settings")
-async def api_get_settings(wallet: WalletTypeInfo = Depends(require_admin_key)):
-    user = wallet.wallet.user
-
-    settings = await get_market_settings(user)
-
-    return settings
-
-
-@market_ext.post("/api/v1/settings")
-@market_ext.put("/api/v1/settings/{usr}")
-async def api_set_settings(
-    data: SetSettings,
-    usr: str = None,
-    wallet: WalletTypeInfo = Depends(require_admin_key),
-):
-    if usr:
-        if usr != wallet.wallet.user:
-            return {"message": "Not your Market."}
-
-        settings = await get_market_settings(user=usr)
-        assert settings
-
-        if settings.user != wallet.wallet.user:
-            return {"message": "Not your Market."}
-
-        return await set_market_settings(usr, data)
-
-    user = wallet.wallet.user
-
-    return await create_market_settings(user, data)
-
-
 ## NOSTR STUFF
-@market_ext.get("/api/v1/nip04/{pubkey}")
-async def api_nostr_event(pubkey: str):
-    streamer = httpx.stream(
-        "POST",
-        "http://localhost:5000/nostrclient/api/v1/filters",
-        json=[{"kinds": [4], "authors": [pubkey]}, {"kinds": [4], "p": [pubkey]}],
-    )
+@market_ext.post("/api/v1/nip04/{pubkey}")
+async def api_nostr_event(request: Request, data: Event, pubkey: str):
+    assert data.tags
+    assert data.content
+    assert data.pubkey  # Sender pubkey
 
-    return EventSourceResponse(streamer)
-    # async with httpx.AsyncClient() as client:
-    #     r = await httpx.post(
-    #         "http://localhost:5000/nostrclient/api/v1/filters",
-    #         json=[{"kinds": [4], "authors": [pubkey]}, {"kinds": [4], "p": [pubkey]}],
-    #     )
+    stall = await get_stall_by_pubkey(pubkey)  # Get merchant privatekey
+    assert stall
 
-    #     ## How do i pass the messages from 'r' as SSE ?
-    #     ## return what?
-    #     return
+    """
+    Now we should decrypt the message with the `stall.privatekey` and 
+    the `data.pubkey` from the event. Check if it's an order and call
+    the `market.create_order` (line 312) to get the payment details and
+    send to customer for payment. Payment will be picked up by the invoice
+    listener, and update the DB! We should also send some confirmation to 
+    the customer!
+    """
+
+    return

@@ -521,3 +521,19 @@ async def set_market_settings(user: str, data):
             user,
         ),
     )
+
+
+## NOSTR
+async def get_pubkeys_from_stalls():
+    rows = await db.fetchall("SELECT * FROM market.stalls")
+    stalls = [Stalls(**row) for row in rows]
+    assert stalls
+    return [s.publickey for s in stalls]
+
+
+async def get_stall_by_pubkey(pubkey: str) -> Optional[Stalls]:
+    stall = await db.fetchone(
+        "SELECT * FROM market.stalls WHERE publickey = ?", (pubkey,)
+    )
+    assert stall
+    return Stalls(**stall)
