@@ -42,16 +42,6 @@
           @click="errorMessage('First set shipping zone(s), then create a stall.')"
           >+ Product <q-tooltip> List a product </q-tooltip></q-btn
         >
-        <q-select
-          style="width: 100px"
-          filled
-          dense
-          v-model="currencies.unit"
-          type="text"
-          label="Unit"
-          :options="currencies.units"
-          @input="(value) => setCurrency(value)"
-        ></q-select>
         <q-btn
           class="q-ml-auto"
           unelevated
@@ -312,18 +302,7 @@
           'Vietnam',
           'China'
         ],
-        categories: [
-          'Fashion (clothing and accessories)',
-          'Health (and beauty)',
-          'Toys (and baby equipment)',
-          'Media (Books and CDs)',
-          'Groceries (Food and Drink)',
-          'Technology (Phones and Computers)',
-          'Home (furniture and accessories)',
-          'Gifts (flowers, cards, etc)',
-          'Adult',
-          'Other'
-        ],
+
         relayOptions: [
           'wss://nostr-pub.wellorder.net',
           'wss://relay.nostr.info',
@@ -697,29 +676,6 @@
             this.diagonAlley = true
             // now collect all market data, create and send a note/event to Nostr
             this.sendToRelays()
-          })
-      },
-      setCurrency(v) {
-        let data = {
-          currency: v,
-          fiat_base_multiplier: this.currencies.unit != 'sat' ? 100 : 1
-        }
-        LNbits.api
-          .request(
-            'PUT',
-            '/market/api/v1/settings/' + this.g.user.id,
-            this.g.user.wallets[0].adminkey,
-            data
-          )
-          .then(response => {
-            this.$q.notify({
-              type: 'positive',
-              message: `Currency changed`,
-              icon: 'check'
-            })
-          })
-          .catch(error => {
-            LNbits.utils.notifyApiError(error)
           })
       },
       marketDataDownload() {

@@ -61,7 +61,7 @@ function nostrProductData(product) {
     name: product.product,
     description: product.description,
     amount: product.quantity,
-    price: product.price,
+    price: product.price, // Client needs the currency from the stall
     image: product.image || null
   }
   let event = {
