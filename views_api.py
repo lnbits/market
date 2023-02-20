@@ -515,8 +515,8 @@ async def api_nostr_event(request: Request, data: Event, pubkey: str):
 
     stall = await get_stall_by_pubkey(pubkey)  # Get merchant privatekey
     assert stall
-
     """
+    Can't figure out the decrypt thing!
     Now we should decrypt the message with the `stall.privatekey` and 
     the `data.pubkey` from the event. Check if it's an order and call
     the `market.create_order` (line 312) to get the payment details and

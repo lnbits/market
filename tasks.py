@@ -27,14 +27,14 @@ async def send_event_to_market(event: dict, pubkey: str):
 
 
 async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
+    logger.debug(f"Subscribing to nostrclient extension")
     # This assumes `nostrclient` extension is present
-    await asyncio.sleep(2)
     url = url_for("/nostrclient/api/v1/filters", external=True)  # nostrclient endpoint
     pubkeys = (
         await get_pubkeys_from_stalls()
     )  # This should update when a new merchant/keypair is created
     pubkeys = list(set(pubkeys))
-
+    logger.debug(f"Listen for NIP04 notes to merchants: {pubkeys}")
     while True:
         try:
             async with httpx.AsyncClient(timeout=None) as client:
@@ -42,12 +42,15 @@ async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
                 async with client.stream(
                     "POST",
                     url,
-                    json=[
-                        # {"kinds": [4], "authors": pubkeys},
+                    json=[  # I think filtering is not working properly
                         {
                             "kinds": [4],
-                            "p": pubkeys,
-                        },  # Just listen to messages sent to merchants
+                            "authors": pubkeys,
+                        },
+                        {
+                            "kinds": [4],
+                            "#p": pubkeys,  # Just listen to messages sent to merchants
+                        },
                     ],
                 ) as r:
                     async for line in r.aiter_lines():
@@ -56,8 +59,9 @@ async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
                             to_merchant = next(
                                 v for k, v in event["tags"] if k == "p" and v
                             )
-
                             if to_merchant in pubkeys:
+                                logger.debug(f"Event sent to {to_merchant}")
+
                                 # Send event to market extension
                                 await send_event_to_market(event, pubkey=to_merchant)
         except:
