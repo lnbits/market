@@ -5,7 +5,6 @@ from uuid import uuid4
 # from lnbits.db import open_ext_db
 from lnbits.db import SQLITE
 from lnbits.helpers import urlsafe_short_hash
-from lnbits.settings import WALLET
 
 from . import db
 from .models import (
@@ -14,7 +13,6 @@ from .models import (
     CreateMarket,
     CreateMarketStalls,
     Market,
-    MarketSettings,
     OrderDetail,
     Orders,
     Products,
@@ -129,12 +127,14 @@ async def create_market_zone(user, data: createZones) -> Zones:
             id,
             "user",
             cost,
-            countries
+            countries,
+            currency,
+            stall
 
         )
-        VALUES (?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (zone_id, user, data.cost, data.countries.lower()),
+        (zone_id, user, data.cost, data.countries.lower(), data.currency, data.stall),
     )
 
     zone = await get_market_zone(zone_id)
@@ -484,43 +484,6 @@ async def get_market_chat_by_merchant(ids: List[str]) -> List[ChatMessage]:
         (*ids,),
     )
     return [ChatMessage(**row) for row in rows]
-
-
-async def get_market_settings(user) -> Optional[MarketSettings]:
-    row = await db.fetchone(
-        """SELECT * FROM market.settings WHERE "user" = ?""", (user,)
-    )
-
-    return MarketSettings(**row) if row else None
-
-
-async def create_market_settings(user: str, data):
-    await db.execute(
-        """
-            INSERT INTO market.settings ("user", currency, fiat_base_multiplier)
-            VALUES (?, ?, ?)
-        """,
-        (
-            user,
-            data.currency,
-            data.fiat_base_multiplier,
-        ),
-    )
-
-
-async def set_market_settings(user: str, data):
-    await db.execute(
-        """
-            UPDATE market.settings
-            SET currency = ?, fiat_base_multiplier = ?
-            WHERE "user" = ?;
-        """,
-        (
-            data.currency,
-            data.fiat_base_multiplier,
-            user,
-        ),
-    )
 
 
 ## NOSTR

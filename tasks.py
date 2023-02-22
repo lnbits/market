@@ -27,6 +27,7 @@ async def send_event_to_market(event: dict, pubkey: str):
 
 
 async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
+    await asyncio.sleep(5)
     logger.debug(f"Subscribing to nostrclient extension")
     # This assumes `nostrclient` extension is present
     url = url_for("/nostrclient/api/v1/filters", external=True)  # nostrclient endpoint
@@ -45,26 +46,40 @@ async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
                     json=[  # I think filtering is not working properly
                         {
                             "kinds": [4],
-                            "authors": pubkeys,
+                            # "authors": pubkeys,
                         },
-                        {
-                            "kinds": [4],
-                            "#p": pubkeys,  # Just listen to messages sent to merchants
-                        },
+                        # {
+                        #     "kinds": [4],
+                        #     "#p": pubkeys,  # Just listen to messages sent to merchants
+                        # },
                     ],
                 ) as r:
                     async for line in r.aiter_lines():
                         if line.startswith("data:"):
                             event = json.loads(line[len("data:") :])[1]
-                            to_merchant = next(
-                                v for k, v in event["tags"] if k == "p" and v
-                            )
-                            if to_merchant in pubkeys:
-                                logger.debug(f"Event sent to {to_merchant}")
 
+                            tags = [t[1] for t in event["tags"] if t[0] == "p"]
+                            to_merchant = None
+                            if tags and len(tags) > 0:
+                                print("subscribe_nostrclient.tags", tags)
+                                to_merchant = tags[0]
+                                if to_merchant in pubkeys:
+                                    print(to_merchant)
+                            if event["pubkey"] in pubkeys:
+                                print(event["pubkey"])
+
+                            if event["pubkey"] in pubkeys or to_merchant in pubkeys:
+                                logger.debug(f"Event sent to {to_merchant}")
+                                pubkey = (
+                                    to_merchant
+                                    if to_merchant in pubkeys
+                                    else event["pubkey"]
+                                )
                                 # Send event to market extension
-                                await send_event_to_market(event, pubkey=to_merchant)
-        except:
+                                await send_event_to_market(event=event, pubkey=pubkey)
+        except Exception as e:
+            print("Error:", e)
+            await asyncio.sleep(3)
             pass
 
 

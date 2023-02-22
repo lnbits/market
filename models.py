@@ -5,17 +5,6 @@ from fastapi import Query
 from pydantic import BaseModel
 
 
-class MarketSettings(BaseModel):
-    user: str
-    currency: str
-    fiat_base_multiplier: int
-
-
-class SetSettings(BaseModel):
-    currency: str
-    fiat_base_multiplier: int = Query(100, ge=1)
-
-
 class Stalls(BaseModel):
     id: str
     wallet: str
@@ -63,15 +52,19 @@ class Products(BaseModel):
 
 
 class createZones(BaseModel):
+    stall: str = Query(...)
     cost: float = Query(0, ge=0)
     countries: str = Query(...)
+    currency: str = Query(...)
 
 
 class Zones(BaseModel):
     id: str
     user: str
+    stall: Optional[str]  # Or existing zones will fail
     cost: float
     countries: str
+    currency: str
 
 
 class OrderDetail(BaseModel):

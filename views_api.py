@@ -1,6 +1,6 @@
 from base64 import urlsafe_b64encode, b64decode
 from http import HTTPStatus
-from typing import List, Union
+from typing import List, Union, Optional
 from uuid import uuid4
 
 import httpx
@@ -30,7 +30,6 @@ from .crud import (
     create_market_order,
     create_market_order_details,
     create_market_product,
-    create_market_settings,
     create_market_stall,
     create_market_zone,
     delete_market_order,
@@ -49,7 +48,6 @@ from .crud import (
     get_market_orders,
     get_market_product,
     get_market_products,
-    get_market_settings,
     get_market_stall,
     get_market_stalls,
     get_market_stalls_by_ids,
@@ -57,7 +55,6 @@ from .crud import (
     get_market_zones,
     get_stall_by_pubkey,
     set_market_order_pubkey,
-    set_market_settings,
     update_market_market,
     update_market_product,
     update_market_stall,
@@ -68,7 +65,6 @@ from .models import (
     CreateMarketStalls,
     Orders,
     Products,
-    SetSettings,
     Stalls,
     Zones,
     createOrder,
@@ -77,9 +73,6 @@ from .models import (
     createZones,
     Event,
 )
-
-# from lnbits.db import open_ext_db
-
 
 ### Products
 @market_ext.get("/api/v1/products")
@@ -108,11 +101,6 @@ async def api_market_product_create(
     product_id=None,
     wallet: WalletTypeInfo = Depends(require_invoice_key),
 ):
-    # For fiat currencies,
-    # we multiply by data.fiat_base_multiplier (usually 100) to save the value in cents.
-    # settings = await get_market_settings(user=wallet.wallet.user)
-    # assert settings
-
     stall = await get_market_stall(stall_id=data.stall)
     assert stall
     if stall.currency != "sat":
@@ -508,7 +496,7 @@ async def api_list_currencies_available():
 
 ## NOSTR STUFF
 @market_ext.post("/api/v1/nip04/{pubkey}")
-async def api_nostr_event(request: Request, data: Event, pubkey: str):
+async def api_nostr_event(data: Event, pubkey: str):
     assert data.tags
     assert data.content
     assert data.pubkey  # Sender pubkey

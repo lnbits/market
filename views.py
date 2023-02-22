@@ -21,19 +21,17 @@ from lnbits.decorators import check_user_exists
 from . import market_ext, market_renderer
 from .crud import (
     create_chat_message,
-    create_market_settings,
     get_market_market,
     get_market_market_stalls,
     get_market_order_details,
     get_market_order_invoiceid,
     get_market_products,
-    get_market_settings,
     get_market_stall,
     get_market_zone,
     get_market_zones,
     update_market_product_stock,
 )
-from .models import CreateChatMessage, SetSettings
+from .models import CreateChatMessage
 from .notifier import Notifier
 
 templates = Jinja2Templates(directory="templates")
@@ -41,17 +39,9 @@ templates = Jinja2Templates(directory="templates")
 
 @market_ext.get("/", response_class=HTMLResponse)
 async def index(request: Request, user: User = Depends(check_user_exists)):
-    settings = await get_market_settings(user=user.id)
-
-    if not settings:
-        await create_market_settings(
-            user=user.id, data=SetSettings(currency="sat", fiat_base_multiplier=1)
-        )
-        settings = await get_market_settings(user.id)
-    assert settings
     return market_renderer().TemplateResponse(
         "market/index.html",
-        {"request": request, "user": user.dict(), "currency": settings.currency},
+        {"request": request, "user": user.dict()},
     )
 
 

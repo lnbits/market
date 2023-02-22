@@ -151,6 +151,16 @@
       <q-select
         filled
         dense
+        emit-value
+        v-model="zoneDialog.data.stall"
+        :options="stalls.map(s => ({label: s.name, value: s.id}))"
+        label="Stall"
+        @input="setZoneCurrency"
+      >
+      </q-select>
+      <q-select
+        filled
+        dense
         multiple
         :options="shippingZoneOptions"
         label="Countries"
@@ -159,11 +169,11 @@
       <q-input
         filled
         dense
-        :label="'Amount (' + currencies.unit + ') *'"
-        :mask="currencies.unit != 'sat' ? '#.##' : '#'"
+        :label="'Amount (' + zoneDialog.data.currency + ') *'"
+        :mask="zoneDialog.data.currency != 'sat' ? '#.##' : '#'"
         fill-mask="0"
         reverse-fill-mask
-        :step="currencies.unit != 'sat' ? '0.01' : '1'"
+        :step="zoneDialog.data.currency != 'sat' ? '0.01' : '1'"
         type="number"
         v-model.trim="zoneDialog.data.cost"
       ></q-input>
@@ -277,6 +287,7 @@
         type="text"
         label="Unit"
         :options="currencies.units"
+        :hint="stallHasProducts && stallHasProducts"
       ></q-select>
       <q-input
         v-if="diagonAlley"
@@ -297,50 +308,66 @@
         label="Private Key"
       ></q-input>
       <!-- NOSTR -->
-      <div v-if="diagonAlley" class="row">
-        <!-- <div class="col-5">
+      <!-- <div v-if="diagonAlley" class="row">
+        <div class="col-5">
           <q-btn unelevated @click="generateKeys" color="primary"
             >Generate keys</q-btn
           >
-        </div> -->
+        </div>
         <div class="col-5">
           <q-btn unelevated @click="restoreKeys" color="primary"
             >Restore keys</q-btn
           >
         </div>
+      </div> -->
+      <div v-if="diagonAlley && g.user.admin">
+        <q-select
+          :options="relayOptions"
+          filled
+          dense
+          multiple
+          v-model.trim="stallDialog.data.relays"
+          label="Relays"
+        ></q-select>
+        <q-input
+          filled
+          dense
+          v-model.trim="stallDialog.data.crelays"
+          label="Custom relays (seperate by comma)"
+        ></q-input>
       </div>
-      <q-select
-        :options="zoneOptions"
-        filled
-        dense
-        multiple
-        v-model.trim="stallDialog.data.shippingzones"
-        label="Shipping Zones"
-      ></q-select>
-      <q-select
-        v-if="diagonAlley"
-        :options="relayOptions"
-        filled
-        dense
-        multiple
-        v-model.trim="stallDialog.data.relays"
-        label="Relays"
-      ></q-select>
-      <q-input
-        v-if="diagonAlley"
-        filled
-        dense
-        v-model.trim="stallDialog.data.crelays"
-        label="Custom relays (seperate by comma)"
-      ></q-input>
-      <q-input
+      <!-- <q-input
         v-if="diagonAlley"
         filled
         dense
         v-model.trim="stallDialog.data.nostrMarkets"
         label="Nostr market public keys (seperate by comma)"
-      ></q-input>
-
+      ></q-input> -->
+      <!-- <div class="col-12">
+        <div v-for="zone in [{}, {}]" class="row q-col-gutter-sm q-mb-sm">
+          <q-select
+            class="col-6"
+            :options="zoneOptions"
+            filled
+            dense
+            multiple
+            v-model.trim="stallDialog.data.shippingzones"
+            label="Shipping Zones"
+          ></q-select>
+          <q-input
+            class="col-4"
+            filled
+            dense
+            v-model.number="productDialog.data.zone"
+            type="number"
+            :label="'Price (' + stallDialog.currency + ') *'"
+            :step="stallDialog.currency != 'sat' ? '0.01' : '1'"
+            :mask="stallDialog.currency != 'sat' ? '#.##' : '#'"
+            fill-mask="0"
+            reverse-fill-mask
+          ></q-input>
+        </div>
+      </div> -->
       <div class="row q-mt-lg">
         <q-btn
           v-if="stallDialog.data.id"

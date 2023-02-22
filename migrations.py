@@ -177,5 +177,14 @@ async def m003_fiat_base_multiplier(db):
     )
 
 
-async def m004_redefine_settings(db):
+async def m004_add_privkey_to_stalls(db):
     await db.execute("ALTER TABLE market.stalls ADD COLUMN privatekey TEXT")
+
+
+async def m005_add_currency_to_zones(db):
+    await db.execute("ALTER TABLE market.zones ADD COLUMN stall TEXT")
+    await db.execute("ALTER TABLE market.zones ADD COLUMN currency TEXT DEFAULT 'sat'")
+
+
+async def m006_delete_market_settings(db):
+    await db.execute("DROP TABLE market.settings")

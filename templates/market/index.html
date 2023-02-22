@@ -5,28 +5,25 @@
   <div class="col-12 col-md-8 col-lg-7 q-gutter-y-md">
     <q-card>
       <q-card-section class="q-gutter-sm row">
-        <q-btn unelevated color="primary" @click="zoneDialog.show = true"
+        <q-btn unelevated color="primary" @click="openStallDialog()"
+          >+ Stall
+          <q-tooltip>
+            Create a market stall to list products on
+          </q-tooltip></q-btn
+        >
+        <q-btn
+          v-if="stalls.length > 0"
+          unelevated
+          color="primary"
+          @click="zoneDialog.show = true"
           >+ Shipping Zone<q-tooltip> Create a shipping zone </q-tooltip></q-btn
         >
         <q-btn
-          unelevated
-          v-if="zones.length > 0"
-          color="primary"
-          @click="openStallDialog()"
-          >+ Stall
-          <q-tooltip>
-            Create a market stall to list products on
-          </q-tooltip></q-btn
-        >
-        <q-btn
-          unelevated
           v-else
+          unelevated
           color="primary"
-          @click="errorMessage('First set shipping zone(s).')"
-          >+ Stall
-          <q-tooltip>
-            Create a market stall to list products on
-          </q-tooltip></q-btn
+          @click="errorMessage('First create a stall.')"
+          >+ Shipping Zone<q-tooltip> Create a shipping zone </q-tooltip></q-btn
         >
         <q-btn
           unelevated
@@ -259,6 +256,7 @@
         shippedModel: false,
         shippingZoneOptions: [
           'Free (digital)',
+          'Flat rate',
           'Worldwide',
           'Europe',
           'Australia',
@@ -458,10 +456,22 @@
               field: 'id'
             },
             {
+              name: 'stall',
+              align: 'left',
+              label: 'Stall',
+              field: 'stall'
+            },
+            {
               name: 'countries',
               align: 'left',
               label: 'Countries',
               field: 'countries'
+            },
+            {
+              name: 'currency',
+              align: 'left',
+              label: 'Currency',
+              field: 'currency'
             },
             {
               name: 'cost',
@@ -510,6 +520,16 @@
           }
         }
         return false
+      },
+      stallHasProducts() {
+        if (this.stallDialog.data.id) {
+          if (this.products.some(p => p.stall == this.stallDialog.data.id)) {
+            return "Warning: if you change currency you'll need to update products prices!"
+          } else {
+            return null
+          }
+        }
+        return null
       }
     },
     methods: {
@@ -523,8 +543,18 @@
       ////////////////////////////////////////
       ////////////////NOSTR///////////////////
       ////////////////////////////////////////
-      getRelays(stallId = false) {
-        let publishToRelays = new Set()
+      async getRelays() {
+        try {
+          let relays = await LNbits.api
+            .request('GET', '/nostrclient/api/v1/relays')
+            .then(res => {
+              return res.data
+            })
+          return relays
+        } catch (e) {
+          console.error(e)
+        }
+        /*let publishToRelays = new Set()
         let stalls = stallId
           ? [this.stalls.find(s => s.id == stallId)]
           : this.stalls
@@ -539,14 +569,14 @@
           }
           relays.filter(Boolean).map(r => publishToRelays.add(r))
         })
-        return publishToRelays
+        return publishToRelays*/
       },
       async nostrGetAllMessages() {
-        let data = {
+        /*let data = {
           kinds: [4],
           authors: [this.keys.pubkey]
           //p: [this.keys.pubkey]
-        }
+        }*/
         //Subscribe to relays
         /*LNbits.api
           .request('POST', '/nostrclient/api/v1/filter', null, {
@@ -568,40 +598,40 @@
           .catch(error => {
             LNbits.utils.notifyApiError(error)
           })*/
-        //let relays = this.getRelays()
-        /*for (const url of relays) {
+        let relays = await this.getRelays()
+        if (!relays) return
+
+        for (const relay of relays) {
           try {
-            const relay = nostr.relayInit(url)
-            await subscribeToChatRelay(
-              relay,
-              [this.keys.pubkey],
-              async event => {
-                let mine = event.pubkey == this.keys.pubkey
-                let sender = mine
-                  ? event.tags.find(([k, v]) => k === 'p' && v && v !== '')[1]
-                  : event.pubkey
-                try {
-                  let plaintext = await nostr.nip04.decrypt(
-                    this.keys.privkey,
-                    sender,
-                    event.content
-                  )
-                  this.nostrMessages.set(event.id, {
-                    msg: plaintext,
-                    timestamp: event.created_at,
-                    pubkey: event.pubkey
-                  })
-                } catch (e) {
-                  console.error('Unable to decrypt message', event, this.keys)
-                  return
-                }
+            const sub = nostr.relayInit(relay.url)
+            await subscribeToChatRelay(sub, [this.keys.pubkey], async event => {
+              let mine = event.pubkey == this.keys.pubkey
+              let sender = mine
+                ? event.tags.find(([k, v]) => k === 'p' && v && v !== '')[1]
+                : event.pubkey
+              try {
+                let plaintext = await nostr.nip04.decrypt(
+                  this.keys.privkey,
+                  sender,
+                  event.content
+                )
+                console.log(`${mine ? 'Me' : 'Customer'}: ${plaintext}`)
+                this.nostrMessages.set(event.id, {
+                  msg: plaintext,
+                  timestamp: event.created_at,
+                  pubkey: event.pubkey
+                })
+              } catch (e) {
+                console.error('Unable to decrypt message', event)
+                return
               }
-            )
+            })
           } catch (e) {
             console.error(e)
             continue
           }
-        }*/
+        }
+        console.log(this.nostrMessages)
       },
       async publishEvent(event) {
         event.pubkey = this.keys.pubkey
@@ -1104,10 +1134,16 @@
             if (response.data) {
               self.zones = response.data.map(mapZone)
             }
+            console.log('ZONES', self.zones)
           })
           .catch(function (error) {
             LNbits.utils.notifyApiError(error)
           })
+      },
+      setZoneCurrency() {
+        this.zoneDialog.currency = this.stalls.find(
+          s => s.id == this.zoneDialog.data.stall
+        ).currency
       },
       openZoneUpdateDialog: function (linkId) {
         var self = this
@@ -1122,6 +1158,7 @@
       },
       sendZoneFormData: function () {
         var data = {
+          ...this.zoneDialog.data,
           countries: String(this.zoneDialog.data.countries),
           cost: parseFloat(this.zoneDialog.data.cost)
         }
@@ -1437,14 +1474,12 @@
 
           let event = {
             kind: 4,
-            pubkey: this.keys.publickey,
             tags: [['p', orderPublicKey]],
             content: ciphertext,
             created_at: Math.floor(Date.now() / 1000)
           }
 
-          event.id = nostr.getEventHash(event)
-          event.sig = await nostr.signEvent(event, this.keys.privatekey)
+          await this.publishEvent(event)
         }
 
         let message = {
@@ -1480,8 +1515,6 @@
           inline: 'nearest'
         })
         this.updateLastSeenMsg(id)
-        //"ea2fbf6c91aa228603681e2cc34bb06e34e6d1375fa4d6c35756182b2fa3307f"
-        //"c7435a04875c26e28db91a377bd6e991dbfefeefea8258415f3ae0c716ed2335"
       },
       startChat(room_name) {
         if (this.ws) {
@@ -1527,7 +1560,6 @@
         this.onboarding.showAgain = showOnboard || false
         this.diagonAlley =
           this.$q.localStorage.getItem('lnbits.DAmode') || false
-        this.currencies.unit = '{{ currency }}'
         await this.getCurrencies()
         this.getStalls()
         this.getProducts()
@@ -1535,6 +1567,7 @@
         await this.getOrders()
         this.getMarkets()
         await this.getAllMessages()
+
         let keys = this.$q.localStorage.getItem(
           `lnbits.market.${this.g.user.id}`
         )

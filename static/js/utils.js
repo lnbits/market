@@ -1,7 +1,10 @@
 function initalizeNostr(data) {
+  data.stalls.map(s => {
+    s.shipping = data.shipping.filter(z => z.stall == s.id)
+  })
   let stalls = data.stalls.map(nostrStallData)
   let products = data.products.map(nostrProductData)
-
+  console.log(stalls)
   return [...stalls, ...products]
 }
 
@@ -44,7 +47,14 @@ function nostrStallData(stall) {
     name: stall.name,
     description: stall.description || '',
     currency: stall.currency,
-    multiplier: stall.fiat_base_multiplier
+    multiplier: stall.fiat_base_multiplier,
+    shipping: stall.shipping.map(z => {
+      return {
+        cost: z.cost,
+        countries: z.countries.split(','),
+        currency: z.currency
+      }
+    })
   }
   let event = {
     kind: 30005,
