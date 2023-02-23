@@ -33,7 +33,7 @@ def market_renderer():
     # return template_renderer(["lnbits/extensions/market/templates"])
 
 
-from .tasks import wait_for_paid_invoices, subscribe_nostrclient_ws
+from .tasks import subscribe_nostrclient_ws, wait_for_paid_invoices
 from .views import *  # noqa
 from .views_api import *  # noqa
 
