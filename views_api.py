@@ -2,10 +2,8 @@ from base64 import urlsafe_b64encode, b64decode, decodebytes
 from http import HTTPStatus
 from typing import List, Union, Optional
 from uuid import uuid4
-from . import cbc
-import secp256k1
+import json
 
-import httpx
 
 from fastapi import Body, Depends, Query, Request
 from fastapi.responses import StreamingResponse
@@ -24,9 +22,10 @@ from lnbits.decorators import (
 )
 from lnbits.helpers import urlsafe_short_hash
 from lnbits.utils.exchange_rates import currencies, get_fiat_rate_satoshis
-
+from .helpers import decrypt_message, get_shared_secret, is_json
 from . import db, market_ext
 from .crud import (
+    create_chat_message,
     create_market_market,
     create_market_market_stalls,
     create_market_order,
@@ -45,6 +44,7 @@ from .crud import (
     get_market_market_stalls,
     get_market_markets,
     get_market_order,
+    get_market_order_by_pubkey,
     get_market_order_details,
     get_market_order_invoiceid,
     get_market_orders,
@@ -63,6 +63,7 @@ from .crud import (
     update_market_zone,
 )
 from .models import (
+    CreateChatMessage,
     CreateMarket,
     CreateMarketStalls,
     Orders,
@@ -499,38 +500,88 @@ async def api_list_currencies_available():
 ## NOSTR STUFF
 @market_ext.post("/api/v1/nip04/{pubkey}")
 async def api_nostr_event(data: Event, pubkey: str):
+    assert data.tags
 
     stall = await get_stall_by_pubkey(pubkey)  # Get merchant privatekey
     assert stall
 
-    def get_shared_secret(privkey: str, pubkey: str):
-        point = secp256k1.PublicKey(bytes.fromhex("02" + pubkey), True)
-        return point.ecdh(privkey)[1:33]
-
     merchant_pk = stall.privatekey
     assert merchant_pk
 
-    tags = [t[1] for t in data.tags if t[0] == "p"]
+    mine = data.pubkey == pubkey
     rec_pub = None
+
+    tags = [t[1] for t in data.tags if t[0] == "p"]
     if tags and len(tags) > 0:
         rec_pub = tags[0]
 
-    if not rec_pub:
-        rec_pub = data.pubkey
+    assert rec_pub
+    recipient = rec_pub if mine else data.pubkey
 
     event_msg = data.content
-    if "?iv=" in event_msg:
+    decrypted_msg = None
+    if event_msg and "?iv=" in event_msg:
         try:
-            shared_secret = get_shared_secret(merchant_pk, rec_pub)
-            aes = cbc.AESCipher(key=shared_secret)
-            enc_text_b64, iv_b64 = event_msg.split("?iv=")
-            iv = decodebytes(iv_b64.encode("utf-8"))
-            enc_text = decodebytes(enc_text_b64.encode("utf-8"))
-            dec_text = aes.decrypt(iv, enc_text)
-            print(dec_text)
+            encryption_key = get_shared_secret(merchant_pk, recipient)
+            decrypted_msg = decrypt_message(event_msg, encryption_key)
+            is_order = is_json(decrypted_msg)
+
+            if is_order:
+                order = json.loads(decrypted_msg)
+                """
+                order dict should be along the lines of the spec in:
+                https://github.com/lnbits/lnbits/tree/diagon-alley/lnbits/extensions/market#checkout-events
+                """
+                products = await get_market_products(stall.id)
+                shipping = await get_market_zone(order["shippingzone"])
+                assert shipping
+                total = 0
+                if products:
+                    # Need to calculate total invoice value to create order
+                    # each (product * qty) + shippingzone cost
+                    for p in order["items"]:
+                        prod = next(
+                            (item for item in products if item.id == p["id"]), None
+                        )
+                        if prod:
+                            total += prod.price * p["quantity"]
+                    total += shipping.cost
+
+                create_order = createOrder.parse_obj(
+                    {
+                        "wallet": stall.wallet,
+                        "username": order["name"],
+                        "pubkey": data.pubkey,
+                        "shippingzone": order["shippingzone"],
+                        "address": order["address"],
+                        "email": order["email"],
+                        "total": total,
+                        "products": [
+                            {"product_id": p["id"], "quantity": p["quantity"]}
+                            for p in order["items"]
+                        ],
+                    }
+                )
+                # not sure if it's good practice to call fn like this
+                await api_market_order_create(create_order)
+            else:
+                # Get the order for this pubkey (may create issues if same pubkey places multiple orders?)
+                client_pubkey = data.pubkey if mine else rec_pub
+                order = await get_market_order_by_pubkey(client_pubkey)
+                if order:
+                    message = CreateChatMessage.parse_obj(
+                        {
+                            "msg": data.content,
+                            "pubkey": data.pubkey,
+                            "room_name": order.invoiceid,
+                        }
+                    )
+                    await create_chat_message(message)
+            print(decrypted_msg)
         except Exception as e:
             print(f"Error: {e}")
             pass
+
     """
     Can't figure out the decrypt thing!
     Now we should decrypt the message with the `stall.privatekey` and 

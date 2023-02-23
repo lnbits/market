@@ -15,11 +15,9 @@ from .crud import (
     get_market_order_details,
     get_market_order_invoiceid,
     get_pubkeys_from_stalls,
-    get_stall_by_pubkey,
     set_market_order_paid,
     update_market_product_stock,
 )
-from .helpers import decrypt_message, get_shared_secret
 
 
 async def send_event_to_market(event: dict, pubkey: str):
@@ -29,45 +27,8 @@ async def send_event_to_market(event: dict, pubkey: str):
         await client.post(url=market_url, json=event)
 
 
-# async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
-#     await asyncio.sleep(5)
-#     logger.debug(f"Subscribing to nostrclient extension")
-#     # This assumes `nostrclient` extension is present
-#     url = url_for("/nostrclient/api/v1/filters", external=True)  # nostrclient endpoint
-#     pubkeys = (
-#         await get_pubkeys_from_stalls()
-#     )  # This should update when a new merchant/keypair is created
-#     pubkeys = list(set(pubkeys))
-#     logger.debug(f"Listen for NIP04 notes to merchants: {pubkeys}")
-#     while True:
-#         try:
-#             async with httpx.AsyncClient(timeout=None) as client:
-#                 # Listen to NIP04 events, sent to any pubkey in pubkeys list
-#                 async with client.stream(
-#                     "POST",
-#                     url,
-#                     json=[  # I think filtering is not working properly
-#                         {
-#                             "kinds": [4],
-#                             # "authors": pubkeys,
-#                         },
-#                         # {
-#                         #     "kinds": [4],
-#                         #     "#p": pubkeys,  # Just listen to messages sent to merchants
-#                         # },
-#                     ],
-#                 ) as r:
-#                     async for line in r.aiter_lines():
-#                         if line.startswith("data:"):
-#                             event = json.loads(line[len("data:") :])[1]
-#                             await handle_event(event, pubkeys)
-#         except Exception as e:
-#             print("Error:", e)
-#             await asyncio.sleep(3)
-#             pass
-
-
 async def subscribe_nostrclient_ws():
+    await asyncio.sleep(3)
     pubkeys = (
         await get_pubkeys_from_stalls()
     )  # This should update when a new merchant/keypair is created
@@ -77,7 +38,7 @@ async def subscribe_nostrclient_ws():
     loop = asyncio.get_event_loop()
 
     def on_message(ws, message):
-        print("### on_message", message)
+        # print("### on_message", message)
         loop.create_task(handle_event(json.loads(message)[1], pubkeys))
 
     def on_error(ws, error):
@@ -123,14 +84,6 @@ async def handle_event(event, pubkeys):
     to_merchant = None
     if tags and len(tags) > 0:
         to_merchant = tags[0]
-        if to_merchant in pubkeys:
-            print("### to_merchant", to_merchant)
-            stall = await get_stall_by_pubkey(to_merchant)
-            if stall:
-                encryption_key = get_shared_secret(stall.privatekey, event["pubkey"])
-                decrypted_msg = decrypt_message(event["content"], encryption_key)
-                print("### decrypted_msg 1:", decrypted_msg)
-
 
     if event["pubkey"] in pubkeys or to_merchant in pubkeys:
         logger.debug(f"Event sent to {to_merchant}")

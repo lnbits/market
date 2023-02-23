@@ -1,4 +1,5 @@
 import base64
+import json
 
 import secp256k1
 from cffi import FFI
@@ -44,3 +45,11 @@ ffi = FFI()
 def copy_x(output, x32, y32, data):
     ffi.memmove(output, x32, 32)
     return 1
+
+
+def is_json(string: str):
+    try:
+        json.loads(string)
+    except ValueError as e:
+        return False
+    return True

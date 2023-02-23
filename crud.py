@@ -306,6 +306,11 @@ async def get_market_order_invoiceid(invoice_id: str) -> Optional[Orders]:
     return Orders(**row) if row else None
 
 
+async def get_market_order_by_pubkey(pubkey: str) -> Optional[Orders]:
+    row = await db.fetchone("SELECT * FROM market.orders WHERE pubkey = ?", (pubkey,))
+    return Orders(**row) if row else None
+
+
 async def set_market_order_paid(payment_hash: str):
     await db.execute(
         """
