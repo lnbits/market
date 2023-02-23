@@ -33,7 +33,7 @@ def market_renderer():
     # return template_renderer(["lnbits/extensions/market/templates"])
 
 
-from .tasks import wait_for_paid_invoices, subscribe_nostrclient
+from .tasks import subscribe_nostrclient_ws, wait_for_paid_invoices
 from .views import *  # noqa
 from .views_api import *  # noqa
 
@@ -41,4 +41,4 @@ from .views_api import *  # noqa
 def market_start():
     loop = asyncio.get_event_loop()
     loop.create_task(catch_everything_and_restart(wait_for_paid_invoices))
-    loop.create_task(catch_everything_and_restart(subscribe_nostrclient))
+    loop.create_task(catch_everything_and_restart(subscribe_nostrclient_ws))
