@@ -1,11 +1,11 @@
-import secp256k1
 import base64
 
+import secp256k1
 from cffi import FFI
+from cryptography.hazmat.primitives import padding
 
 # from Cryptodome.Cipher import AES
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding
 
 
 def get_shared_secret(privkey: str, pubkey: str):
@@ -18,9 +18,7 @@ def decrypt_message(encoded_message: str, encryption_key) -> str:
     encoded_content, encoded_iv = encoded_data[0], encoded_data[1]
 
     iv = base64.b64decode(encoded_iv)
-    cipher = Cipher(
-        algorithms.AES(encryption_key), modes.CBC(iv)
-    )
+    cipher = Cipher(algorithms.AES(encryption_key), modes.CBC(iv))
     encrypted_content = base64.b64decode(encoded_content)
 
     decryptor = cipher.decryptor()
@@ -31,10 +29,12 @@ def decrypt_message(encoded_message: str, encryption_key) -> str:
 
     return unpadded_data.decode()
 
+
 def decrypt(enc_text, encryption_key, iv):
     cipher = Cipher(algorithms.AES(encryption_key, modes.CBC(iv)))
     data = cipher.decrypt(enc_text)
     return data[: -(data[-1] if type(data[-1]) == int else ord(data[-1]))]
+
 
 ffi = FFI()
 

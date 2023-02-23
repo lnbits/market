@@ -4,8 +4,6 @@ import threading
 from typing import AsyncGenerator
 
 import httpx
-
-
 import websocket
 from loguru import logger
 
