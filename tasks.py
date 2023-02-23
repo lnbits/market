@@ -4,6 +4,8 @@ import threading
 from typing import AsyncGenerator
 
 import httpx
+
+
 import websocket
 from loguru import logger
 
@@ -15,9 +17,11 @@ from .crud import (
     get_market_order_details,
     get_market_order_invoiceid,
     get_pubkeys_from_stalls,
+    get_stall_by_pubkey,
     set_market_order_paid,
     update_market_product_stock,
 )
+from .helpers import decrypt_message, get_shared_secret
 
 
 async def send_event_to_market(event: dict, pubkey: str):
@@ -117,7 +121,13 @@ async def handle_event(event, pubkeys):
         print("subscribe_nostrclient.tags", tags)
         to_merchant = tags[0]
         if to_merchant in pubkeys:
-            print(to_merchant)
+            print("### to_merchant", to_merchant)
+            stall = await get_stall_by_pubkey(to_merchant)
+            if stall:
+                encryption_key = get_shared_secret(stall.privatekey, event["pubkey"])
+                decrypted_msg = decrypt_message(event["content"], encryption_key)
+                print("### decrypted_msg 1:", decrypted_msg)
+
     if event["pubkey"] in pubkeys:
         print(event["pubkey"])
 
