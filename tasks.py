@@ -65,6 +65,44 @@ async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
             await asyncio.sleep(3)
             pass
 
+async def subscribe_nostrclient_ws():
+    pubkeys = (
+        await get_pubkeys_from_stalls()
+    )  # This should update when a new merchant/keypair is created
+    pubkeys = list(set(pubkeys))
+    logger.debug(f"Listen for NIP04 notes to merchants: {pubkeys}")
+
+    loop = asyncio.get_event_loop()
+    
+    def on_message(ws, message):
+        print("### on_message", message)
+        loop.create_task(handle_event(json.loads(message)[1], pubkeys))
+
+    def on_error(ws, error):
+         print("### on_error", error)
+
+    def on_close(ws):
+        print("### on_close")
+
+    def on_open(ws):
+        print("### on_open")
+        msg = json.dumps({
+                "kinds": [4],
+                "#p": pubkeys,
+            })
+        ws.send(msg)
+
+    await asyncio.sleep(5)
+    logger.debug(f"Subscribing to websockets for nostrclient extension")
+    ws = websocket.WebSocketApp("ws://localhost:5000/nostrclient/api/v1/filters",
+                                on_message = on_message,
+                                on_error = on_error,
+                                on_close = on_close)
+    ws.on_open = on_open
+
+    wst = threading.Thread(target=ws.run_forever)
+    wst.daemon = True
+    wst.start()
 
 async def handle_event(event, pubkeys):
     tags = [t[1] for t in event["tags"] if t[0] == "p"]
