@@ -1,7 +1,9 @@
-from base64 import urlsafe_b64encode, b64decode
+from base64 import urlsafe_b64encode, b64decode, decodebytes
 from http import HTTPStatus
 from typing import List, Union, Optional
 from uuid import uuid4
+from . import cbc
+import secp256k1
 
 import httpx
 
@@ -497,12 +499,38 @@ async def api_list_currencies_available():
 ## NOSTR STUFF
 @market_ext.post("/api/v1/nip04/{pubkey}")
 async def api_nostr_event(data: Event, pubkey: str):
-    assert data.tags
-    assert data.content
-    assert data.pubkey  # Sender pubkey
 
     stall = await get_stall_by_pubkey(pubkey)  # Get merchant privatekey
     assert stall
+
+    def get_shared_secret(privkey: str, pubkey: str):
+        point = secp256k1.PublicKey(bytes.fromhex("02" + pubkey), True)
+        return point.ecdh(privkey)[1:33]
+
+    merchant_pk = stall.privatekey
+    assert merchant_pk
+
+    tags = [t[1] for t in data.tags if t[0] == "p"]
+    rec_pub = None
+    if tags and len(tags) > 0:
+        rec_pub = tags[0]
+
+    if not rec_pub:
+        rec_pub = data.pubkey
+
+    event_msg = data.content
+    if "?iv=" in event_msg:
+        try:
+            shared_secret = get_shared_secret(merchant_pk, rec_pub)
+            aes = cbc.AESCipher(key=shared_secret)
+            enc_text_b64, iv_b64 = event_msg.split("?iv=")
+            iv = decodebytes(iv_b64.encode("utf-8"))
+            enc_text = decodebytes(enc_text_b64.encode("utf-8"))
+            dec_text = aes.decrypt(iv, enc_text)
+            print(dec_text)
+        except Exception as e:
+            print(f"Error: {e}")
+            pass
     """
     Can't figure out the decrypt thing!
     Now we should decrypt the message with the `stall.privatekey` and 
