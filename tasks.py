@@ -1,16 +1,15 @@
 import asyncio
-
-from loguru import logger
-from typing import AsyncGenerator
-import httpx
 import json
-import websocket
 import threading
+from typing import AsyncGenerator
 
+import httpx
+import websocket
+from loguru import logger
 
 from lnbits.core.models import Payment
-from lnbits.tasks import register_invoice_listener
 from lnbits.helpers import url_for
+from lnbits.tasks import register_invoice_listener
 
 from .crud import (
     get_market_order_details,
@@ -65,6 +64,7 @@ async def subscribe_nostrclient() -> AsyncGenerator[str, None]:
             await asyncio.sleep(3)
             pass
 
+
 async def subscribe_nostrclient_ws():
     pubkeys = (
         await get_pubkeys_from_stalls()
@@ -73,13 +73,13 @@ async def subscribe_nostrclient_ws():
     logger.debug(f"Listen for NIP04 notes to merchants: {pubkeys}")
 
     loop = asyncio.get_event_loop()
-    
+
     def on_message(ws, message):
         print("### on_message", message)
         loop.create_task(handle_event(json.loads(message)[1], pubkeys))
 
     def on_error(ws, error):
-         print("### on_error", error)
+        print("### on_error", error)
 
     def on_close(ws):
         print("### on_close")
@@ -87,23 +87,28 @@ async def subscribe_nostrclient_ws():
     def on_open(ws):
         """Filter subscription logic goes here"""
         print("### on_open")
-        msg = json.dumps({
+        msg = json.dumps(
+            {
                 "kinds": [4],
                 "#p": pubkeys,
-            })
+            }
+        )
         ws.send(msg)
 
     await asyncio.sleep(5)
     logger.debug(f"Subscribing to websockets for nostrclient extension")
-    ws = websocket.WebSocketApp("ws://localhost:5000/nostrclient/api/v1/filters",
-                                on_message = on_message,
-                                on_error = on_error,
-                                on_close = on_close)
+    ws = websocket.WebSocketApp(
+        "ws://localhost:5000/nostrclient/api/v1/filters",
+        on_message=on_message,
+        on_error=on_error,
+        on_close=on_close,
+    )
     ws.on_open = on_open
 
     wst = threading.Thread(target=ws.run_forever)
     wst.daemon = True
     wst.start()
+
 
 async def handle_event(event, pubkeys):
     tags = [t[1] for t in event["tags"] if t[0] == "p"]
@@ -118,14 +123,9 @@ async def handle_event(event, pubkeys):
 
     if event["pubkey"] in pubkeys or to_merchant in pubkeys:
         logger.debug(f"Event sent to {to_merchant}")
-        pubkey = (
-                                    to_merchant
-                                    if to_merchant in pubkeys
-                                    else event["pubkey"]
-                                )
-                                # Send event to market extension
+        pubkey = to_merchant if to_merchant in pubkeys else event["pubkey"]
+        # Send event to market extension
         await send_event_to_market(event=event, pubkey=pubkey)
-
 
 
 async def wait_for_paid_invoices():
