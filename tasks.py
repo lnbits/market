@@ -85,6 +85,7 @@ async def subscribe_nostrclient_ws():
         print("### on_close")
 
     def on_open(ws):
+        """Filter subscription logic goes here"""
         print("### on_open")
         msg = json.dumps({
                 "kinds": [4],
