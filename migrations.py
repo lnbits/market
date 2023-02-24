@@ -194,68 +194,64 @@ async def m007_order_id_to_UUID(db):
     """
     Migrate ID column type to string for UUIDs and migrate existing data
     """
-    # we can simply change the column type for postgres
-    if db.type != "SQLITE":
-        await db.execute("ALTER TABLE market.orders ALTER COLUMN id TYPE TEXT;")
-    else:
-        # but we have to do this for sqlite
-        await db.execute("ALTER TABLE market.orders RENAME TO orders_old")
+
+    await db.execute("ALTER TABLE market.orders RENAME TO orders_old")
+    await db.execute(
+        f"""
+        CREATE TABLE market.orders (
+            id TEXT PRIMARY KEY,
+            wallet TEXT NOT NULL,
+            username TEXT,
+            pubkey TEXT,
+            shippingzone TEXT NOT NULL,
+            address TEXT NOT NULL,
+            email TEXT NOT NULL,
+            total INTEGER NOT NULL,
+            invoiceid TEXT NOT NULL,
+            paid BOOLEAN NOT NULL,
+            shipped BOOLEAN NOT NULL,
+            time TIMESTAMP NOT NULL DEFAULT """
+        + db.timestamp_now
+        + """
+        );
+        """
+    )
+
+    for row in [
+        list(row) for row in await db.fetchall("SELECT * FROM market.orders_old")
+    ]:
         await db.execute(
-            f"""
-            CREATE TABLE market.orders (
-                id TEXT PRIMARY KEY,
-                wallet TEXT NOT NULL,
-                username TEXT,
-                pubkey TEXT,
-                shippingzone TEXT NOT NULL,
-                address TEXT NOT NULL,
-                email TEXT NOT NULL,
-                total INTEGER NOT NULL,
-                invoiceid TEXT NOT NULL,
-                paid BOOLEAN NOT NULL,
-                shipped BOOLEAN NOT NULL,
-                time TIMESTAMP NOT NULL DEFAULT """
-            + db.timestamp_now
-            + """
-            );
             """
+            INSERT INTO market.orders (
+                id,
+                wallet,
+                username,
+                pubkey,
+                shippingzone,
+                address,
+                email,
+                total,
+                invoiceid,
+                paid,
+                shipped,
+                time
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row[0],
+                row[1],
+                row[2],
+                row[3],
+                row[4],
+                row[5],
+                row[6],
+                row[7],
+                row[8],
+                row[9],
+                row[10],
+                row[11],
+            ),
         )
 
-        for row in [
-            list(row) for row in await db.fetchall("SELECT * FROM market.orders_old")
-        ]:
-            await db.execute(
-                """
-                INSERT INTO market.orders (
-                    id,
-                    wallet,
-                    username,
-                    pubkey,
-                    shippingzone,
-                    address,
-                    email,
-                    total,
-                    invoiceid,
-                    paid,
-                    shipped,
-                    time
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    row[0],
-                    row[1],
-                    row[2],
-                    row[3],
-                    row[4],
-                    row[5],
-                    row[6],
-                    row[7],
-                    row[8],
-                    row[9],
-                    row[10],
-                    row[11],
-                ),
-            )
-
-        await db.execute("DROP TABLE market.orders_old")
+    await db.execute("DROP TABLE market.orders_old")
