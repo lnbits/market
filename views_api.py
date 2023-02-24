@@ -1,14 +1,13 @@
-from base64 import urlsafe_b64encode, b64decode, decodebytes
-from http import HTTPStatus
-from typing import List, Union, Optional
-from uuid import uuid4
 import json
-
+from base64 import b64decode, decodebytes, urlsafe_b64encode
+from http import HTTPStatus
+from typing import List, Optional, Union
+from uuid import uuid4
 
 from fastapi import Body, Depends, Query, Request
 from fastapi.responses import StreamingResponse
-from sse_starlette.sse import EventSourceResponse
 from loguru import logger
+from sse_starlette.sse import EventSourceResponse
 from starlette.exceptions import HTTPException
 
 from lnbits.core.crud import get_user
@@ -62,10 +61,12 @@ from .crud import (
     update_market_stall,
     update_market_zone,
 )
+from .helpers import decrypt_message, get_shared_secret, is_json, test_decrypt_encrypt
 from .models import (
     CreateChatMessage,
     CreateMarket,
     CreateMarketStalls,
+    Event,
     Orders,
     Products,
     Stalls,
@@ -74,8 +75,8 @@ from .models import (
     createProduct,
     createStalls,
     createZones,
-    Event,
 )
+
 
 ### Products
 @market_ext.get("/api/v1/products")
@@ -524,6 +525,9 @@ async def api_nostr_event(data: Event, pubkey: str):
         try:
             encryption_key = get_shared_secret(merchant_pk, recipient)
             decrypted_msg = decrypt_message(event_msg, encryption_key)
+
+            test_decrypt_encrypt(event_msg, encryption_key)
+
             is_order = is_json(decrypted_msg)
 
             if is_order:
