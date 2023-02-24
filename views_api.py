@@ -22,7 +22,7 @@ from lnbits.decorators import (
 )
 from lnbits.helpers import urlsafe_short_hash
 from lnbits.utils.exchange_rates import currencies, get_fiat_rate_satoshis
-from .helpers import decrypt_message, get_shared_secret, is_json
+from .helpers import decrypt_message, get_shared_secret, hash_order_id, is_json
 from . import db, market_ext
 from .crud import (
     create_chat_message,
@@ -301,8 +301,9 @@ async def api_market_order_by_id(order_id: str):
 
 
 @market_ext.post("/api/v1/orders", name="market.create_order")
-async def api_market_order_create(data: createOrder):
-    ref = urlsafe_short_hash()
+async def api_market_order_create(data: createOrder, id: str):
+    if not id:
+        id = urlsafe_short_hash()
 
     payment_hash, payment_request = await create_invoice(
         wallet_id=data.wallet,
@@ -310,17 +311,16 @@ async def api_market_order_create(data: createOrder):
         memo=f"New order on Market",
         extra={
             "tag": "market",
-            "reference": ref,
+            "reference": id,
         },
     )
-    order_id = await create_market_order(invoiceid=payment_hash, data=data)
+    order_id = await create_market_order(invoiceid=payment_hash, data=data, order_id=id)
     logger.debug(f"ORDER ID {order_id}")
     logger.debug(f"PRODUCTS {data.products}")
     await create_market_order_details(order_id=order_id, data=data.products)
     return {
         "payment_hash": payment_hash,
         "payment_request": payment_request,
-        "order_reference": ref,
     }
 
 
@@ -562,12 +562,17 @@ async def api_nostr_event(data: Event, pubkey: str):
                         ],
                     }
                 )
+                # It would be best we could create a "UUID" with the encryption key, to make sure when we save the messages, we do it with the right conversation_id
+                # encrypt/hash uuid so it could be decrypted with the 'encryption_key'?! does it make sense?
+                uuid = urlsafe_short_hash()
+                nostr_order_id = ""  # Needs an encrypt method on .helpers
                 # not sure if it's good practice to call fn like this
-                await api_market_order_create(create_order)
+                await api_market_order_create(create_order, id=nostr_order_id)
             else:
                 # Get the order for this pubkey (may create issues if same pubkey places multiple orders?)
                 client_pubkey = data.pubkey if mine else rec_pub
-                order = await get_market_order_by_pubkey(client_pubkey)
+                nostr_order_id = ""
+                order = await get_market_order(nostr_order_id)
                 if order:
                     message = CreateChatMessage.parse_obj(
                         {
@@ -577,7 +582,7 @@ async def api_nostr_event(data: Event, pubkey: str):
                         }
                     )
                     await create_chat_message(message)
-            print(decrypted_msg)
+                print(decrypted_msg)
         except Exception as e:
             print(f"Error: {e}")
             pass

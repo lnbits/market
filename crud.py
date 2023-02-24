@@ -240,17 +240,18 @@ async def delete_market_stall(stall_id: str) -> None:
 ###Orders
 
 
-async def create_market_order(data: createOrder, invoiceid: str):
+async def create_market_order(data: createOrder, invoiceid: str, order_id: str):
     returning = "" if db.type == SQLITE else "RETURNING ID"
     method = db.execute if db.type == SQLITE else db.fetchone
 
     result = await (method)(
         f"""
-            INSERT INTO market.orders (wallet, shippingzone, address, email, total, invoiceid, paid, shipped)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO market.orders (id, wallet, shippingzone, address, email, total, invoiceid, paid, shipped)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             {returning}
             """,
         (
+            order_id,
             data.wallet,
             data.shippingzone,
             data.address,
@@ -303,11 +304,6 @@ async def get_market_order_invoiceid(invoice_id: str) -> Optional[Orders]:
     row = await db.fetchone(
         "SELECT * FROM market.orders WHERE invoiceid = ?", (invoice_id,)
     )
-    return Orders(**row) if row else None
-
-
-async def get_market_order_by_pubkey(pubkey: str) -> Optional[Orders]:
-    row = await db.fetchone("SELECT * FROM market.orders WHERE pubkey = ?", (pubkey,))
     return Orders(**row) if row else None
 
 
