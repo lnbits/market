@@ -1,13 +1,8 @@
 import json
-from base64 import b64decode, decodebytes, urlsafe_b64encode
 from http import HTTPStatus
-from typing import List, Optional, Union
-from uuid import uuid4
 
-from fastapi import Body, Depends, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, Query
 from loguru import logger
-from sse_starlette.sse import EventSourceResponse
 from starlette.exceptions import HTTPException
 
 from lnbits.core.crud import get_user
@@ -20,8 +15,8 @@ from lnbits.decorators import (
     require_invoice_key,
 )
 from lnbits.helpers import urlsafe_short_hash
-from lnbits.utils.exchange_rates import currencies, get_fiat_rate_satoshis
-from .helpers import decrypt_message, get_shared_secret, hash_order_id, is_json
+from lnbits.utils.exchange_rates import currencies
+
 from . import db, market_ext
 from .crud import (
     create_chat_message,
@@ -43,7 +38,6 @@ from .crud import (
     get_market_market_stalls,
     get_market_markets,
     get_market_order,
-    get_market_order_by_pubkey,
     get_market_order_details,
     get_market_order_invoiceid,
     get_market_orders,
@@ -51,7 +45,6 @@ from .crud import (
     get_market_products,
     get_market_stall,
     get_market_stalls,
-    get_market_stalls_by_ids,
     get_market_zone,
     get_market_zones,
     get_stall_by_pubkey,
@@ -65,12 +58,7 @@ from .helpers import decrypt_message, get_shared_secret, is_json, test_decrypt_e
 from .models import (
     CreateChatMessage,
     CreateMarket,
-    CreateMarketStalls,
     Event,
-    Orders,
-    Products,
-    Stalls,
-    Zones,
     createOrder,
     createProduct,
     createStalls,
