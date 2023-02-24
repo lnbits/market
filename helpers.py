@@ -1,10 +1,11 @@
 import base64
 import json
+import secrets
+from typing import Optional
 
 import secp256k1
 from cffi import FFI
 from cryptography.hazmat.primitives import padding
-
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 
@@ -30,10 +31,29 @@ def decrypt_message(encoded_message: str, encryption_key) -> str:
     return unpadded_data.decode()
 
 
-def decrypt(enc_text, encryption_key, iv):
-    cipher = Cipher(algorithms.AES(encryption_key, modes.CBC(iv)))
-    data = cipher.decrypt(enc_text)
-    return data[: -(data[-1] if type(data[-1]) == int else ord(data[-1]))]
+def encrypt_message(message: str, encryption_key, iv: Optional[bytes]) -> str:
+    padder = padding.PKCS7(128).padder()
+    padded_data = padder.update(message.encode()) + padder.finalize()
+
+    iv = iv if iv else secrets.token_bytes(16)
+    cipher = Cipher(algorithms.AES(encryption_key), modes.CBC(iv))
+
+    encryptor = cipher.encryptor()
+    encrypted_message = encryptor.update(padded_data) + encryptor.finalize()
+
+    return f"{base64.b64encode(encrypted_message).decode()}?iv={base64.b64encode(iv).decode()}"
+
+
+def test_decrypt_encrypt(encoded_message: str, encryption_key):
+    msg = decrypt_message(encoded_message, encryption_key)
+
+    # ecrypt using the same initialisation vector
+    iv = base64.b64decode(encoded_message.split("?iv=")[1])
+    ecrypted_msg = encrypt_message(msg, encryption_key, iv)
+    assert (
+        encoded_message == ecrypted_msg
+    ), f"expected '{encoded_message}', but got '{ecrypted_msg}'"
+    print("### test_decrypt_encrypt", encoded_message == ecrypted_msg)
 
 
 ffi = FFI()

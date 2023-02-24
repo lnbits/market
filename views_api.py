@@ -1,13 +1,7 @@
-from base64 import urlsafe_b64encode, b64decode, decodebytes
-from http import HTTPStatus
-from typing import List, Union, Optional
-from uuid import uuid4
 import json
+from http import HTTPStatus
 
-
-from fastapi import Body, Depends, Query, Request
-from fastapi.responses import StreamingResponse
-from sse_starlette.sse import EventSourceResponse
+from fastapi import Depends, Query
 from loguru import logger
 from starlette.exceptions import HTTPException
 
@@ -21,8 +15,8 @@ from lnbits.decorators import (
     require_invoice_key,
 )
 from lnbits.helpers import urlsafe_short_hash
-from lnbits.utils.exchange_rates import currencies, get_fiat_rate_satoshis
-from .helpers import decrypt_message, get_shared_secret, hash_order_id, is_json
+from lnbits.utils.exchange_rates import currencies
+
 from . import db, market_ext
 from .crud import (
     create_chat_message,
@@ -44,7 +38,6 @@ from .crud import (
     get_market_market_stalls,
     get_market_markets,
     get_market_order,
-    get_market_order_by_pubkey,
     get_market_order_details,
     get_market_order_invoiceid,
     get_market_orders,
@@ -52,7 +45,6 @@ from .crud import (
     get_market_products,
     get_market_stall,
     get_market_stalls,
-    get_market_stalls_by_ids,
     get_market_zone,
     get_market_zones,
     get_stall_by_pubkey,
@@ -62,20 +54,17 @@ from .crud import (
     update_market_stall,
     update_market_zone,
 )
+from .helpers import decrypt_message, get_shared_secret, is_json, test_decrypt_encrypt
 from .models import (
     CreateChatMessage,
     CreateMarket,
-    CreateMarketStalls,
-    Orders,
-    Products,
-    Stalls,
-    Zones,
+    Event,
     createOrder,
     createProduct,
     createStalls,
     createZones,
-    Event,
 )
+
 
 ### Products
 @market_ext.get("/api/v1/products")
@@ -524,6 +513,9 @@ async def api_nostr_event(data: Event, pubkey: str):
         try:
             encryption_key = get_shared_secret(merchant_pk, recipient)
             decrypted_msg = decrypt_message(event_msg, encryption_key)
+
+            test_decrypt_encrypt(event_msg, encryption_key)
+
             is_order = is_json(decrypted_msg)
 
             if is_order:
