@@ -1,5 +1,7 @@
 import json
 from http import HTTPStatus
+import httpx
+import time
 
 from fastapi import Depends, Query
 from loguru import logger
@@ -54,7 +56,13 @@ from .crud import (
     update_market_stall,
     update_market_zone,
 )
-from .helpers import decrypt_message, get_shared_secret, is_json, test_decrypt_encrypt
+from .helpers import (
+    decrypt_message,
+    encrypt_message,
+    get_shared_secret,
+    is_json,
+    test_decrypt_encrypt,
+)
 from .models import (
     CreateChatMessage,
     CreateMarket,
@@ -290,9 +298,9 @@ async def api_market_order_by_id(order_id: str):
 
 
 @market_ext.post("/api/v1/orders", name="market.create_order")
-async def api_market_order_create(data: createOrder, id: str):
-    if not id:
-        id = urlsafe_short_hash()
+async def api_market_order_create(data: createOrder):
+
+    order_id = urlsafe_short_hash()
 
     payment_hash, payment_request = await create_invoice(
         wallet_id=data.wallet,
@@ -300,10 +308,10 @@ async def api_market_order_create(data: createOrder, id: str):
         memo=f"New order on Market",
         extra={
             "tag": "market",
-            "reference": id,
+            "reference": order_id,
         },
     )
-    order_id = await create_market_order(invoiceid=payment_hash, data=data, order_id=id)
+    await create_market_order(invoiceid=payment_hash, data=data, order_id=order_id)
     logger.debug(f"ORDER ID {order_id}")
     logger.debug(f"PRODUCTS {data.products}")
     await create_market_order_details(order_id=order_id, data=data.products)
@@ -554,39 +562,44 @@ async def api_nostr_event(data: Event, pubkey: str):
                         ],
                     }
                 )
-                # It would be best we could create a "UUID" with the encryption key, to make sure when we save the messages, we do it with the right conversation_id
-                # encrypt/hash uuid so it could be decrypted with the 'encryption_key'?! does it make sense?
-                uuid = urlsafe_short_hash()
-                nostr_order_id = ""  # Needs an encrypt method on .helpers
+
                 # not sure if it's good practice to call fn like this
-                await api_market_order_create(create_order, id=nostr_order_id)
+                _, payment_request = await api_market_order_create(create_order)
+                if payment_request:
+                    # Send nip04 message to customer for payment, with payment request
+                    async with httpx.AsyncClient() as client:
+                        # construct the event, needs signing, id
+                        event = Event
+                        event.pubkey = pubkey
+                        event.kind = 4
+                        event.created_at = int(time.time())
+                        event.content = json.dumps(
+                            {
+                                "message": f"Payment for order your order",
+                                "payment_options": [
+                                    {"type": "ln", "link": payment_request}
+                                ],
+                            }
+                        )
+                        event.sig = ""  # how do i sign this?
+                        try:
+                            await client.post("/nostrclient/api/v1/publish", json=event)
+                        except AssertionError as e:
+                            print(f"Error occured: {e}")
+
             else:
-                # Get the order for this pubkey (may create issues if same pubkey places multiple orders?)
-                client_pubkey = data.pubkey if mine else rec_pub
-                nostr_order_id = ""
-                order = await get_market_order(nostr_order_id)
-                if order:
-                    message = CreateChatMessage.parse_obj(
-                        {
-                            "msg": data.content,
-                            "pubkey": data.pubkey,
-                            "room_name": order.invoiceid,
-                        }
-                    )
-                    await create_chat_message(message)
+                message = CreateChatMessage.parse_obj(
+                    {
+                        "msg": data.content,
+                        "pubkey": data.pubkey,
+                        "room_name": "nostr",
+                    }
+                )
+                await create_chat_message(message)
+                # just for testing
                 print(decrypted_msg)
         except Exception as e:
             print(f"Error: {e}")
             pass
-
-    """
-    Can't figure out the decrypt thing!
-    Now we should decrypt the message with the `stall.privatekey` and 
-    the `data.pubkey` from the event. Check if it's an order and call
-    the `market.create_order` (line 312) to get the payment details and
-    send to customer for payment. Payment will be picked up by the invoice
-    listener, and update the DB! We should also send some confirmation to 
-    the customer!
-    """
 
     return
