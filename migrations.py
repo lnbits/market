@@ -239,7 +239,7 @@ async def m007_order_id_to_UUID(db):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                row[0],
+                str(row[0]),
                 row[1],
                 row[2],
                 row[3],
