@@ -572,12 +572,14 @@ async def api_nostr_event(data: Event, pubkey: str):
                         event = Event
                         event.pubkey = pubkey
                         event.kind = 4
-                        event.created_at = int(time.time())
+                        event.created_at = int(time.time())  # is this ok?
                         event.content = json.dumps(
                             {
                                 "message": f"Payment for order your order",
                                 "payment_options": [
                                     {"type": "ln", "link": payment_request}
+                                    # can have other payment options (on chain, if merchant has it)
+                                    # for our case LNURL is not advised/needed
                                 ],
                             }
                         )
