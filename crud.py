@@ -202,6 +202,22 @@ async def create_market_stall(data: createStalls) -> Stalls:
     return stall
 
 
+async def update_market_stall_zones(stall_id: str, zones: str, delete=False):
+    stall = await get_market_stall(stall_id)
+    if not stall:
+        return
+    existing_zones = stall.shippingzones.split(",")
+    if delete:
+        existing_zones.remove(zones)
+    else:
+        existing_zones.append(zones)
+    zone_str = ",".join(list(set(existing_zones)))
+    await db.execute(
+        f"UPDATE market.stalls SET shippingzones = ? WHERE id = ?",
+        (zone_str, stall_id),
+    )
+
+
 async def update_market_stall(stall_id: str, **kwargs) -> Optional[Stalls]:
     q = ", ".join([f"{field[0]} = ?" for field in kwargs.items()])
     await db.execute(

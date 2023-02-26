@@ -54,11 +54,13 @@ async def stall(request: Request, stall_id):
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND, detail="Stall does not exist."
         )
-
+    print("#### STALL", stall)
     zones = []
     for id in stall.shippingzones.split(","):
         zone = await get_market_zone(id)
-        assert zone
+        if not zone:
+            logger.debug(f"Error on finding shipping zone: {zone}")
+            continue
         z = zone.dict()
         zones.append({"label": z["countries"], "cost": z["cost"], "value": z["id"]})
 

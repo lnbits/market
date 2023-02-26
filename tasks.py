@@ -29,9 +29,13 @@ async def send_event_to_market(event: dict, pubkey: str):
 
 async def subscribe_nostrclient_ws():
     await asyncio.sleep(3)
-    pubkeys = (
-        await get_pubkeys_from_stalls()
-    )  # This should update when a new merchant/keypair is created
+    try:
+        pubkeys = (
+            await get_pubkeys_from_stalls()
+        )  # This should update when a new merchant/keypair is created
+    except AssertionError as error:
+        logger.error(f"No pubkeys!!")
+        return
     pubkeys = list(set(pubkeys))
     logger.debug(f"Listen for NIP04 notes to merchants: {pubkeys}")
 

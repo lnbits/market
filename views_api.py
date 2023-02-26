@@ -54,6 +54,7 @@ from .crud import (
     update_market_market,
     update_market_product,
     update_market_stall,
+    update_market_stall_zones,
     update_market_zone,
 )
 from .helpers import (
@@ -171,6 +172,7 @@ async def api_market_zone_create(
     data: createZones, wallet: WalletTypeInfo = Depends(get_key_type)
 ):
     zone = await create_market_zone(user=wallet.wallet.user, data=data)
+    await update_market_stall_zones(stall_id=data.stall, zones=zone.id)
     return zone.dict()
 
 
@@ -186,6 +188,8 @@ async def api_market_zone_update(
     if zone.user != wallet.wallet.user:
         return {"message": "Not your record."}
     zone = await update_market_zone(zone_id, **data.dict())
+    assert zone
+    await update_market_stall_zones(stall_id=data.stall, zones=zone.id)
     return zone
 
 
@@ -202,6 +206,9 @@ async def api_market_zone_delete(
         return {"message": "Not your zone."}
 
     await delete_market_zone(zone_id)
+
+    if zone.stall:
+        await update_market_stall_zones(stall_id=zone.stall, zones=zone.id, delete=True)
     raise HTTPException(status_code=HTTPStatus.NO_CONTENT)
 
 
@@ -590,14 +597,16 @@ async def api_nostr_event(data: Event, pubkey: str):
                             print(f"Error occured: {e}")
 
             else:
+                # need to change DB to have unique ID, and set ID of event
                 message = CreateChatMessage.parse_obj(
                     {
                         "msg": data.content,
                         "pubkey": data.pubkey,
                         "room_name": "nostr",
+                        "created_at": data.created_at,
                     }
                 )
-                await create_chat_message(message)
+                # await create_chat_message(message)
                 # just for testing
                 print(decrypted_msg)
         except Exception as e:
