@@ -462,12 +462,16 @@ async def update_market_market(market_id: str, name: str):
 
 
 async def create_chat_message(data: CreateChatMessage):
+    if not data.id:
+        data.id = urlsafe_short_hash()
     await db.execute(
         """
-            INSERT INTO market.messages (msg, pubkey, id_conversation)
-            VALUES (?, ?, ?)
+            INSERT INTO market.messages (id, msg, pubkey, id_conversation)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT DO NOTHING
             """,
         (
+            data.id,
             data.msg,
             data.pubkey,
             data.room_name,

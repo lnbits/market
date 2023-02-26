@@ -250,8 +250,53 @@ async def m007_order_id_to_UUID(db):
                 row[8],
                 row[9],
                 row[10],
-                row[11],
+                int(row[11]),
             ),
         )
 
     await db.execute("DROP TABLE market.orders_old")
+
+
+async def m008_message_id_to_TEXT(db):
+    """
+    Migrate ID column type to string for UUIDs and migrate existing data
+    """
+
+    await db.execute("ALTER TABLE market.messages RENAME TO messages_old")
+    await db.execute(
+        f"""
+        CREATE TABLE market.messages (
+            id TEXT PRIMARY KEY,
+            msg TEXT NOT NULL,
+            pubkey TEXT NOT NULL,
+            id_conversation TEXT NOT NULL,
+            timestamp TIMESTAMP NOT NULL DEFAULT """
+        + db.timestamp_now
+        + """            
+        );
+    """
+    )
+
+    for row in [
+        list(row) for row in await db.fetchall("SELECT * FROM market.messages_old")
+    ]:
+        await db.execute(
+            """
+            INSERT INTO market.messages(
+                id,
+                msg,
+                pubkey,
+                id_conversation,
+                timestamp
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                str(row[0]),
+                row[1],
+                row[2],
+                row[3],
+                int(row[4]),
+            ),
+        )
+
+    await db.execute("DROP TABLE market.messages_old")

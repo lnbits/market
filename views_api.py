@@ -597,16 +597,18 @@ async def api_nostr_event(data: Event, pubkey: str):
                             print(f"Error occured: {e}")
 
             else:
-                # need to change DB to have unique ID, and set ID of event
+                # needs to check if we already have the message saved
+                # so we need the event.id also
                 message = CreateChatMessage.parse_obj(
                     {
+                        "id": data.sig,
                         "msg": data.content,
                         "pubkey": data.pubkey,
                         "room_name": "nostr",
                         "created_at": data.created_at,
                     }
                 )
-                # await create_chat_message(message)
+                await create_chat_message(message)
                 # just for testing
                 print(decrypted_msg)
         except Exception as e:

@@ -130,6 +130,7 @@ class ChatMessage(BaseModel):
 
 
 class CreateChatMessage(BaseModel):
+    id: str = Query(None)
     msg: str = Query(..., min_length=1)
     pubkey: str = Query(...)
     room_name: str = Query(...)
