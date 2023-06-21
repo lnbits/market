@@ -72,7 +72,7 @@ from .models import (
 @market_ext.get("/api/v1/products")
 async def api_market_products(
     wallet: WalletTypeInfo = Depends(require_invoice_key),
-    all_stalls: bool = False,
+    all_stalls: bool = Query(False),
 ):
     wallet_ids = [wallet.wallet.id]
 
@@ -211,7 +211,7 @@ async def api_market_zone_delete(
 
 @market_ext.get("/api/v1/stalls")
 async def api_market_stalls(
-    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = False
+    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = Query(False)
 ):
     wallet_ids = [wallet.wallet.id]
 
@@ -266,7 +266,7 @@ async def api_market_stall_delete(
 
 @market_ext.get("/api/v1/orders")
 async def api_market_orders(
-    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = False
+    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = Query(False)
 ):
     wallet_ids = [wallet.wallet.id]
     if all_wallets:
@@ -377,7 +377,7 @@ async def api_market_order_pubkey(payment_hash: str, pubkey: str):
 
 @market_ext.get("/api/v1/orders/shipped/{order_id}")
 async def api_market_order_shipped(
-    order_id, shipped: bool, wallet: WalletTypeInfo = Depends(get_key_type)
+    order_id, shipped: bool = Query(...), wallet: WalletTypeInfo = Depends(get_key_type)
 ):
     await db.execute(
         "UPDATE market.orders SET shipped = ? WHERE id = ?",
@@ -481,7 +481,7 @@ async def api_get_merchant_messages(
 
 
 @market_ext.get("/api/v1/chat/messages/{room_name}")
-async def api_get_latest_chat_msg(room_name: str, all_messages: bool = False):
+async def api_get_latest_chat_msg(room_name: str, all_messages: bool = Query(False)):
     if all_messages:
         messages = await get_market_chat_messages(room_name)
     else:

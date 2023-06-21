@@ -102,9 +102,9 @@ async def market(request: Request, market_id):
 @market_ext.get("/order", response_class=HTMLResponse)
 async def order_chat(
     request: Request,
-    merch: str,
-    invoice_id: str,
-    keys: Optional[str] = None,
+    merch: str= Query(...),
+    invoice_id: str= Query(...),
+    keys: str = Query(None),
 ):
     stall = await get_market_stall(merch)
     assert stall
