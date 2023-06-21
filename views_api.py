@@ -10,10 +10,10 @@ from lnbits.core.services import create_invoice
 from lnbits.core.views.api import api_payment
 from lnbits.decorators import (
     WalletTypeInfo,
+    check_admin,
     get_key_type,
     require_admin_key,
     require_invoice_key,
-    check_admin,
 )
 from lnbits.helpers import urlsafe_short_hash
 from lnbits.utils.exchange_rates import currencies
@@ -72,7 +72,7 @@ from .models import (
 @market_ext.get("/api/v1/products")
 async def api_market_products(
     wallet: WalletTypeInfo = Depends(require_invoice_key),
-    all_stalls: bool = Query(False),
+    all_stalls: bool = False,
 ):
     wallet_ids = [wallet.wallet.id]
 
@@ -211,7 +211,7 @@ async def api_market_zone_delete(
 
 @market_ext.get("/api/v1/stalls")
 async def api_market_stalls(
-    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = Query(False)
+    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = False
 ):
     wallet_ids = [wallet.wallet.id]
 
@@ -266,7 +266,7 @@ async def api_market_stall_delete(
 
 @market_ext.get("/api/v1/orders")
 async def api_market_orders(
-    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = Query(False)
+    wallet: WalletTypeInfo = Depends(get_key_type), all_wallets: bool = False
 ):
     wallet_ids = [wallet.wallet.id]
     if all_wallets:
@@ -377,7 +377,7 @@ async def api_market_order_pubkey(payment_hash: str, pubkey: str):
 
 @market_ext.get("/api/v1/orders/shipped/{order_id}")
 async def api_market_order_shipped(
-    order_id, shipped: bool = Query(...), wallet: WalletTypeInfo = Depends(get_key_type)
+    order_id, shipped: bool, wallet: WalletTypeInfo = Depends(get_key_type)
 ):
     await db.execute(
         "UPDATE market.orders SET shipped = ? WHERE id = ?",
@@ -475,13 +475,13 @@ async def api_market_market_create(
 
 @market_ext.get("/api/v1/chat/messages/merchant")
 async def api_get_merchant_messages(
-    orders: str = Query(...), wallet: WalletTypeInfo = Depends(require_admin_key)
+    orders: str, wallet: WalletTypeInfo = Depends(require_admin_key)
 ):
     return [msg.dict() for msg in await get_market_chat_by_merchant(orders.split(","))]
 
 
 @market_ext.get("/api/v1/chat/messages/{room_name}")
-async def api_get_latest_chat_msg(room_name: str, all_messages: bool = Query(False)):
+async def api_get_latest_chat_msg(room_name: str, all_messages: bool = False):
     if all_messages:
         messages = await get_market_chat_messages(room_name)
     else:

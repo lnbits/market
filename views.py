@@ -1,4 +1,5 @@
 from http import HTTPStatus
+from typing import Optional
 
 from fastapi import Depends, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.templating import Jinja2Templates
@@ -101,9 +102,9 @@ async def market(request: Request, market_id):
 @market_ext.get("/order", response_class=HTMLResponse)
 async def order_chat(
     request: Request,
-    merch: str = Query(...),
-    invoice_id: str = Query(...),
-    keys: str = Query(None),
+    merch: str,
+    invoice_id: str,
+    keys: Optional[str] = None,
 ):
     stall = await get_market_stall(merch)
     assert stall
