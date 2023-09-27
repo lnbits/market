@@ -2,5 +2,6 @@
   "name": "Marketplace",
   "short_description": "Webshop/market on LNbits",
 	"tile": "/market/static/images/bitcoin-shop.png",
+  "lnbits_min_version": "0.11.0",
   "contributors": ["benarc", "talvasconcelos"]
 }

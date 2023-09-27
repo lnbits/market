@@ -1,7 +1,6 @@
 import asyncio
 
 from fastapi import APIRouter
-from starlette.staticfiles import StaticFiles
 from typing import List
 
 from lnbits.db import Database
@@ -17,23 +16,12 @@ market_ext: APIRouter = APIRouter(prefix="/market", tags=["market"])
 market_static_files = [
     {
         "path": "/market/static",
-        "app": StaticFiles(directory="lnbits/extensions/market/static"),
         "name": "market_static",
     }
 ]
 
-# if 'nostradmin' not in LNBITS_ADMIN_EXTENSIONS:
-#     @market_ext.get("/", response_class=HTMLResponse)
-#     async def index(request: Request):
-#         return template_renderer().TemplateResponse(
-#                 "error.html", {"request": request, "err": "Ask system admin to enable NostrAdmin!"}
-#             )
-# else:
-
-
 def market_renderer():
-    return template_renderer(["lnbits/extensions/market/templates"])
-    # return template_renderer(["lnbits/extensions/market/templates"])
+    return template_renderer(["market/templates"])
 
 
 from .tasks import wait_for_paid_invoices
