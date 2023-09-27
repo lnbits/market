@@ -1,3 +1,9 @@
+
+
+### WE ADVISE USING <href="https://github.com/lnbits/nostrmarket#nostr-market-nip-15---lnbits-extension">NOSTR MARKET</a>, BUT HAVE LEFT THIS EXTENSION HERE IN CASE ANYONE WANTS TO CONTRIBUTE.
+
+> This was originally built to be a nostr market as well, although now that turned into <a href="https://github.com/lnbits/nostrmarket">this extension</a>. The below has been kept for historcial context, but is irrelvant for this extension.
+
 ## Nostr Diagon Alley protocol (for resilient marketplaces)
 
 `authur: Ben Arc`
