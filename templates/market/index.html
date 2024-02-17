@@ -592,7 +592,7 @@
         window.URL.revokeObjectURL(url)
       },
       generateKeys() {
-        const privkey = nostr.generatePrivateKey()
+        const privkey = nostr.generateSecretKey()
         const pubkey = nostr.getPublicKey(privkey)
 
         this.keys = {privkey, pubkey}

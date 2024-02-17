@@ -389,7 +389,7 @@
         if ('publickey' in this.user.keys && 'privatekey' in this.user.keys)
           return
 
-        const privkey = nostr.generatePrivateKey()
+        const privkey = nostr.generateSecretKey()
         const pubkey = nostr.getPublicKey(privkey)
 
         this.user.keys = {
