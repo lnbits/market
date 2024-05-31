@@ -1,6 +1,8 @@
 {
   "shipping_zones": [
     "Free (digital)",
+    "Meetup",
+    "P2P",
     "Worldwide",
     "Europe",
     "Australia",
